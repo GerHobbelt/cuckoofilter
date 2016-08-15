@@ -13,6 +13,9 @@
 #include <random>
 #include <limits.h>
 
+#include "SpookyV2.hpp"
+
+
 namespace cuckoofilter {
 
 class HashUtil {
@@ -27,6 +30,8 @@ class HashUtil {
   static void BobHash(const void *buf, size_t length, uint32_t *idx1,
                       uint32_t *idx2);
   static void BobHash(const std::string &s, uint32_t *idx1, uint32_t *idx2);
+
+  static uint64_t SpookyHash(const void *buf, size_t length, uint64 seed = 0);
 
   // MurmurHash2
   static uint32_t MurmurHash(const void *buf, size_t length, uint32_t seed = 0);

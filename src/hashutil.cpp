@@ -580,6 +580,11 @@ void HashUtil::BobHash(const std::string &s, uint32_t *idx1, uint32_t *idx2) {
   return BobHash(s.data(), s.length(), idx1, idx2);
 }
 
+uint64_t HashUtil::SpookyHash(const void *buf, size_t length, uint64 seed)
+{
+    return SpookyHash::Hash64(buf, length, seed);
+}
+
 //-----------------------------------------------------------------------------
 // MurmurHash2, by Austin Appleby
 // Note - This code makes a few assumptions about how your machine behaves -
