@@ -101,3 +101,5 @@ Authors
 - Bin Fan <binfan@cs.cmu.edu>
 - David G. Andersen <dga@cs.cmu.edu>
 - Michael Kaminsky <michael.e.kaminsky@intel.com>
+- Niko Vuokko <niko.vuokko@sharpershape.com>
+
