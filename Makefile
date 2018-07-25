@@ -23,8 +23,14 @@ all: $(TEST)
 clean:
 	rm -f $(TEST) */*.o
 
-test: example/test.o $(LIBOBJECTS) 
+test: example/test.o $(LIBOBJECTS)
 	$(CC) example/test.o $(LIBOBJECTS) $(LDFLAGS) -o $@
+
+test_bench: example/test_bench.o $(LIBOBJECTS)
+	$(CC) example/test_bench.o $(LIBOBJECTS) $(LDFLAGS) -o $@
+
+test_bench_xor: example/test_bench_xor.o $(LIBOBJECTS)
+	$(CC) example/test_bench_xor.o $(LIBOBJECTS) $(LDFLAGS) -o $@
 
 %.o: %.cc ${HEADERS} Makefile
 	$(CC) $(CFLAGS) $< -o $@

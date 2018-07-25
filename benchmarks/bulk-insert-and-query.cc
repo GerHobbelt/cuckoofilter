@@ -54,6 +54,7 @@
 #include <vector>
 
 #include "cuckoofilter.h"
+#include "xorfilter.h"
 #include "random.h"
 #include "simd-block.h"
 #include "timing.h"
@@ -61,6 +62,7 @@
 using namespace std;
 
 using namespace cuckoofilter;
+using namespace xorfilter;
 
 // The number of items sampled when determining the lookup performance
 const size_t SAMPLE_SIZE = 1000 * 1000;
@@ -131,6 +133,8 @@ struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType>> {
       throw logic_error("The filter is too small to hold all of the elements");
     }
   }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+  }
   static bool Contain(uint64_t key, const Table * table) {
     return (0 == table->Contain(key));
   }
@@ -146,10 +150,27 @@ struct FilterAPI<SimdBlockFilter<>> {
   static void Add(uint64_t key, Table* table) {
     table->Add(key);
   }
+  static void AddAll(const vector<uint64_t> keys, const size_t start, const size_t end, Table* table) {
+  }
   static bool Contain(uint64_t key, const Table * table) {
     return table->Find(key);
   }
 };
+
+template <typename ItemType, size_t bits_per_item>
+struct FilterAPI<XorFilter<ItemType, bits_per_item>> {
+  using Table = XorFilter<ItemType, bits_per_item>;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table* table) {
+  }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+    table->AddAll(keys, start, end);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return (0 == table->Contain(key));
+  }
+};
+
 
 template <typename Table>
 Statistics FilterBenchmark(
@@ -167,9 +188,13 @@ Statistics FilterBenchmark(
 
   // Add values until failure or until we run out of values to add:
   auto start_time = NowNanos();
+
   for (size_t added = 0; added < add_count; ++added) {
     FilterAPI<Table>::Add(to_add[added], &filter);
   }
+  // for the XorFilter
+  FilterAPI<Table>::AddAll(to_add, 0, add_count, &filter);
+
   result.adds_per_nano = add_count / static_cast<double>(NowNanos() - start_time);
   result.bits_per_item = static_cast<double>(CHAR_BIT * filter.SizeInBytes()) / add_count;
 
@@ -213,6 +238,12 @@ int main(int argc, char * argv[]) {
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
   auto cf = FilterBenchmark<
+      XorFilter<uint64_t, 8>>(
+      add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
+
+  cf = FilterBenchmark<
       CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
       add_count, to_add, to_lookup);
 
