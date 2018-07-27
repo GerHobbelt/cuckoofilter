@@ -102,23 +102,20 @@ Status XorFilter<ItemType, bits_per_item, HashFamily>::AddAll(
 	int m = arrayLength;
 	uint64_t* reverseOrder = new uint64_t[size];
 	uint8_t* reverseH = new uint8_t[size];
-	int reverseOrderPos;
+	size_t reverseOrderPos;
 	int hashIndex = 0;
-	Status result = Ok;
-	
-    uint8_t* t2count = new uint8_t[m];
+	uint8_t* t2count = new uint8_t[m];
 	uint64_t* t2 = new uint64_t[m];
 	while (true) {
 		memset(t2count, 0, sizeof(uint8_t[m])); 
 		memset(t2, 0, sizeof(uint64_t[m])); 
-		for(int i=start; i<end; i++) {
-    		uint64_t k = keys[i];
+		for(size_t i=start; i<end; i++) {
+    			uint64_t k = keys[i];
 			for (int hi = 0; hi < 3; hi++) {
 				int h = getHash(k, hashIndex, hi, blockLength);
 				t2[h] ^= k;
 				if (t2count[h] > 120) {
-    				result = NotEnoughSpace;
-    				goto end;
+    				  goto end;
 				}
 				t2count[h]++;
 			}
@@ -127,7 +124,7 @@ Status XorFilter<ItemType, bits_per_item, HashFamily>::AddAll(
 		int* alone = new int[arrayLength];
 		int alonePos = 0;
 		reverseOrderPos = 0;
-		for(int nextAloneCheck = 0; nextAloneCheck < arrayLength;) {
+		for(size_t nextAloneCheck = 0; nextAloneCheck < arrayLength;) {
 			while (nextAloneCheck < arrayLength) {
 				if (t2count[nextAloneCheck] == 1) {
 					alone[alonePos++] = nextAloneCheck;
