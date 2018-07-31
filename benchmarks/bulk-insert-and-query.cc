@@ -157,6 +157,23 @@ struct FilterAPI<SimdBlockFilter<>> {
   }
 };
 
+template <>
+struct FilterAPI<SimdBlockFilter64<>> {
+  using Table = SimdBlockFilter64<>;
+  static Table ConstructFromAddCount(size_t add_count) {
+    Table ans(ceil(log2(add_count * 8.0 / CHAR_BIT)));
+    return ans;
+  }
+  static void Add(uint64_t key, Table* table) {
+    table->Add(key);
+  }
+  static void AddAll(const vector<uint64_t> keys, const size_t start, const size_t end, Table* table) {
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return table->Find(key);
+  }
+};
+
 template <typename ItemType, size_t bits_per_item>
 struct FilterAPI<XorFilter<ItemType, bits_per_item>> {
   using Table = XorFilter<ItemType, bits_per_item>;
@@ -204,6 +221,7 @@ Statistics FilterBenchmark(
         &to_add[add_count], found_probability);
     const auto start_time = NowNanos();
     for (const auto v : to_lookup_mixed) {
+      asm volatile ("" : : : "memory");
       found_count += FilterAPI<Table>::Contain(v, &filter);
     }
     const auto lookup_time = NowNanos() - start_time;
@@ -243,6 +261,13 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
 
+  cf = FilterBenchmark<SimdBlockFilter64<>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "SimdBlock16" << cf << endl;
+  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
+
   cf = FilterBenchmark<
       CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
       add_count, to_add, to_lookup);
@@ -279,8 +304,6 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
 
-  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
 
-  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
 
 }
