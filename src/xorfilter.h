@@ -55,6 +55,24 @@ size_t getHash(uint64_t key, int hashIndex, int index, int blockLength) {
     return (size_t) r;
 }
 
+size_t getHashFromHash(uint64_t hash, int index, int blockLength) {
+    uint32_t r;
+    switch(index) {
+    case 0:
+        r = (uint32_t) (hash);
+        break;
+    case 1:
+        r = (uint32_t) (hash >> 16);
+        break;
+    default:
+        r = (uint32_t) (hash >> 32);
+        break;
+    }
+    r = reduce(r, blockLength);
+    r = r + index * blockLength;
+    return (size_t) r;
+}
+
 template <typename ItemType, size_t bits_per_item,
           typename HashFamily = TwoIndependentMultiplyShift>
 class XorFilter {
@@ -83,7 +101,6 @@ class XorFilter {
 
   // Report if the item is inserted, with false positive rate.
   Status Contain(const ItemType &item) const;
-  Status Fuck(const ItemType &item) const;
 
   /* methods for providing stats  */
   // summary infomation
@@ -105,21 +122,23 @@ Status XorFilter<ItemType, bits_per_item, HashFamily>::AddAll(
     uint8_t* reverseH = new uint8_t[size];
     size_t reverseOrderPos;
     int hashIndex = 0;
-    uint8_t* t2count = new uint8_t[m];
     uint64_t* t2 = new uint64_t[m];
+    uint8_t* t2count = new uint8_t[m];
     while (true) {
         memset(t2count, 0, sizeof(uint8_t[m]));
         memset(t2, 0, sizeof(uint64_t[m]));
-        for(size_t i=start; i<end; i++) {
-                uint64_t k = keys[i];
-            for (int hi = 0; hi < 3; hi++) {
-                int h = getHash(k, hashIndex, hi, blockLength);
-                t2[h] ^= k;
-                if (t2count[h] > 120) {
-                      goto end;
-                }
-                t2count[h]++;
-            }
+        for(size_t i = start; i < end; i++) {
+            uint64_t k = keys[i];
+            uint64_t hash = hash64(k + hashIndex);
+            int h0 = reduce((int) (hash), blockLength);
+            int h1 = reduce((int) (hash >> 16), blockLength) + blockLength;
+            int h2 = reduce((int) (hash >> 32), blockLength) + 2 * blockLength;
+            t2count[h0]++;
+            t2[h0] ^= hash;
+            t2count[h1]++;
+            t2[h1] ^= hash;
+            t2count[h2]++;
+            t2[h2] ^= hash;
         }
         reverseOrderPos = 0;
         int* alone = new int[arrayLength];
@@ -138,10 +157,10 @@ Status XorFilter<ItemType, bits_per_item, HashFamily>::AddAll(
                 if (t2count[i] == 0) {
                     continue;
                 }
-                long k = t2[i];
+                long hash = t2[i];
                 uint8_t found = -1;
                 for (int hi = 0; hi < 3; hi++) {
-                    int h = getHash(k, hashIndex, hi, blockLength);
+                    int h = getHashFromHash(hash, hi, blockLength);
                     int newCount = --t2count[h];
                     if (newCount == 0) {
                         found = (uint8_t) hi;
@@ -149,10 +168,10 @@ Status XorFilter<ItemType, bits_per_item, HashFamily>::AddAll(
                         if (newCount == 1) {
                             alone[alonePos++] = h;
                         }
-                        t2[h] ^= k;
+                        t2[h] ^= hash;
                     }
                 }
-                reverseOrder[reverseOrderPos] = k;
+                reverseOrder[reverseOrderPos] = hash;
                 reverseH[reverseOrderPos] = found;
                 reverseOrderPos++;
             }
@@ -171,16 +190,15 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
 
     for (int i = reverseOrderPos - 1; i >= 0; i--) {
         // the key we insert next
-        long k = reverseOrder[i];
+        uint64_t hash = reverseOrder[i];
         int found = reverseH[i];
         // which entry in the table we can change
         int change = -1;
         // we set table[change] to the fingerprint of the key,
         // unless the other two entries are already occupied
-        uint64_t hash = hash64(k + hashIndex);
         uint8_t xor2 = fingerprint(hash);
         for (int hi = 0; hi < 3; hi++) {
-            size_t h = getHash(k, hashIndex, hi, blockLength);
+            size_t h = getHashFromHash(hash, hi, blockLength);
             if (found == hi) {
                 change = h;
             } else {
@@ -192,10 +210,8 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
         fingerprints[change] = (uint8_t) xor2;
     }
 
-end:
-
-    delete [] t2count;
     delete [] t2;
+    delete [] t2count;
     delete [] reverseOrder;
     delete [] reverseH;
 
