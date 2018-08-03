@@ -21,10 +21,16 @@ enum Status {
 };
 
 inline uint64_t hash64(uint64_t x) {
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
+    // TODO need to check if this is "fair" (cuckoo filter uses TwoIndependentMultiplyShift)
+    x = x * 0xbf58476d1ce4e5b9L;
     x = x ^ (x >> 31);
     return x;
+
+    // mix64
+    // x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
+    // x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
+    // x = x ^ (x >> 31);
+    // return x;
 }
 
 inline uint32_t fingerprint(uint64_t hash) {
