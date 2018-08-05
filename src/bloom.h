@@ -46,6 +46,28 @@ uint64_t getBit(uint32_t index) {
     return 1L << (index & 63);
 }
 
+// https://stackoverflow.com/questions/30052316/find-next-prime-number-algorithm
+bool isPrime(int number) {
+    if (number == 2 || number == 3)
+        return true;
+    if (number % 2 == 0 || number % 3 == 0)
+        return false;
+    int divisor = 6;
+    while (divisor * divisor - 2 * divisor + 1 <= number) {
+        if (number % (divisor - 1) == 0)
+            return false;
+        if (number % (divisor + 1) == 0)
+            return false;
+        divisor += 6;
+    }
+    return true;
+}
+
+int nextPrime(int a) {
+    while (!isPrime(++a));
+    return a;
+}
+
 template <typename ItemType, size_t bits_per_item>
 class BloomFilter {
 
@@ -53,6 +75,7 @@ class BloomFilter {
   size_t size;
   int k;
   size_t arrayLength;
+  size_t bitCount;
 
   double BitsPerItem() const { return k; }
 
@@ -60,7 +83,8 @@ class BloomFilter {
   explicit BloomFilter(const size_t n) {
     this->size = 0;
     this->k = getBestK(n * bits_per_item, n);
-    this->arrayLength = (n * bits_per_item + 63) / 64;
+    this->bitCount = nextPrime(n * bits_per_item);
+    this->arrayLength = (bitCount + 63) / 64;
     data = new uint64_t[arrayLength];
   }
 
@@ -90,6 +114,8 @@ Status BloomFilter<ItemType, bits_per_item>::Add(
     uint32_t a = (uint32_t) (hash >> 32);
     uint32_t b = (uint32_t) hash;
     for (int i = 0; i < k; i++) {
+        // int index = reduce(a, this->bitCount);
+        // data[index >> 6] |= getBit(index);
         // reworked to avoid overflows
         // use the fact that reduce is not very sensitive to lower bits of a
         data[reduce(a, this->arrayLength)] |= getBit(a);
@@ -105,6 +131,10 @@ Status BloomFilter<ItemType, bits_per_item>::Contain(
     uint32_t a = (uint32_t) (hash >> 32);
     uint32_t b = (uint32_t) hash;
     for (int i = 0; i < k; i++) {
+        // int index = reduce(a, this->bitCount);
+        // if ((data[index >> 6] & getBit(index)) == 0) {
+        //     return NotFound;
+        // }
         // reworked to avoid overflows
         if ((data[reduce(a, this->arrayLength)] & getBit(a)) == 0) {
             return NotFound;

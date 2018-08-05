@@ -253,16 +253,16 @@ int main(int argc, char * argv[]) {
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
   auto cf = FilterBenchmark<
-      XorFilter<uint64_t, 8>>(
-      add_count, to_add, to_lookup);
-
-  cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
-
-  cf = FilterBenchmark<
       BloomFilter<uint64_t, 10 /* bits per item */>>(
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Bloom" << cf << endl;
+
+  cf = FilterBenchmark<
+      XorFilter<uint64_t, 8>>(
+      add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
 
   cf = FilterBenchmark<
       CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
