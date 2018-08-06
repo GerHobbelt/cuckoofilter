@@ -56,6 +56,7 @@
 #include "cuckoofilter.h"
 #include "xorfilter.h"
 #include "bloom.h"
+#include "gqf_cpp.h"
 #include "random.h"
 #include "simd-block.h"
 #include "timing.h"
@@ -65,6 +66,7 @@ using namespace std;
 using namespace cuckoofilter;
 using namespace xorfilter;
 using namespace bloomfilter;
+using namespace gqfilter;
 
 // The number of items sampled when determining the lookup performance
 const size_t SAMPLE_SIZE = 1000 * 1000;
@@ -174,6 +176,20 @@ struct FilterAPI<XorFilter<ItemType, bits_per_item>> {
 };
 
 template <typename ItemType, size_t bits_per_item>
+struct FilterAPI<GQFilter<ItemType, bits_per_item>> {
+  using Table = GQFilter<ItemType, bits_per_item>;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table* table) {
+    table->Add(key);
+  }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return (0 == table->Contain(key));
+  }
+};
+
+template <typename ItemType, size_t bits_per_item>
 struct FilterAPI<BloomFilter<ItemType, bits_per_item>> {
   using Table = BloomFilter<ItemType, bits_per_item>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
@@ -257,6 +273,12 @@ int main(int argc, char * argv[]) {
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Bloom" << cf << endl;
+
+  cf = FilterBenchmark<
+      GQFilter<uint64_t, 8>>(
+      add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "CQF" << cf << endl;
 
   cf = FilterBenchmark<
       XorFilter<uint64_t, 8>>(
