@@ -60,9 +60,6 @@ class GQFilter {
         nslots = (1ULL << qbits);
     } while(nslots * 9 < n * 10);
     uint64_t nhashbits = qbits + 8;
-    while (nhashbits != 8 && nhashbits != 16 && nhashbits != 32 && nhashbits != 64) {
-        nhashbits++;
-    }
     mask = (1ULL << nhashbits) - 1;
 
     // this is according to the formula in the paper (not checked for correctness)
