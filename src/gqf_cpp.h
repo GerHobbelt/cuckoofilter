@@ -28,23 +28,26 @@ enum Status {
 
 inline uint64_t hash64(uint64_t x) {
     // TODO need to check if this is "fair" (cuckoo filter uses TwoIndependentMultiplyShift)
-    // x = x * 0xbf58476d1ce4e5b9L;
-    // x = x ^ (x >> 31);
-    // return x;
-
-    // mix64
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
+    x = x * 0xbf58476d1ce4e5b9L;
     x = x ^ (x >> 31);
     return x;
+
+    // mix64
+    // x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
+    // x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
+    // x = x ^ (x >> 31);
+    // return x;
 }
 
 template <typename ItemType, size_t bits_per_item>
 class GQFilter {
 
   QF qf;
+  uint64_t mask;
+  uint64_t bytesUsed;
+  double bitsPerItem;
 
-  double BitsPerItem() const { return 0; }
+  double BitsPerItem() const { return bitsPerItem; }
 
  public:
   explicit GQFilter(const size_t n) {
@@ -60,21 +63,32 @@ class GQFilter {
     while (nhashbits != 8 && nhashbits != 16 && nhashbits != 32 && nhashbits != 64) {
         nhashbits++;
     }
+    mask = (1ULL << nhashbits) - 1;
 
-// std::cout << "(CQF: nslots " << nslots << " nhashbits " << nhashbits << ")\n";
+    // this is according to the formula in the paper (not checked for correctness)
+    uint64_t fingerprintBits = nhashbits;
+    uint64_t fingerprintSlots = nslots;
+	while (fingerprintSlots > 1) {
+		fingerprintBits--;
+		fingerprintSlots >>= 1;
+	}
+    bitsPerItem = ((nslots * fingerprintBits) / n) + 2.125;
+    bytesUsed = (uint64_t)(n * bitsPerItem) / 8;
+
+// std::cout << "(CQF: nslots " << nslots << " nhashbits " << nhashbits << " n " << n << " bitsPerItem " << bitsPerItem << ")\n";
 
 // if (!qf_malloc(&qf, nslots, nhashbits, 0, QF_HASH_INVERTIBLE, 0)) {
 //    if (!qf_malloc(&qf, nslots, nhashbits, 0, QF_HASH_DEFAULT, 0)) {
-    if (!qf_malloc(&qf, nslots, nhashbits, 0, QF_HASH_DEFAULT, 0)) {
+    if (!qf_malloc(&qf, nslots, nhashbits, 0, QF_HASH_NONE, 0)) {
         std::cout << "Can't allocate CQF.\n";
         abort();
     }
-    qf_set_auto_resize(&qf, true);
+    // qf_set_auto_resize(&qf, true);
 
   }
 
   ~GQFilter() {
-    // TODO
+      qf_free(&qf);
   }
 
   // Add an item to the filter.
@@ -91,14 +105,15 @@ class GQFilter {
   size_t Size() const { return 0; }
 
   // size of the filter in bytes.
-  size_t SizeInBytes() const { return 0; }
+  size_t SizeInBytes() const { return bytesUsed; }
 };
 
 template <typename ItemType, size_t bits_per_item>
 Status GQFilter<ItemType, bits_per_item>::Add(
     const ItemType &key) {
     uint64_t hash = hash64(key);
-    int ret = qf_insert(&qf, hash, 0, 1, QF_NO_LOCK);
+    // int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK | QF_KEY_IS_HASH);
+    int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK);
     if (ret < 0) {
         std::cout << "failed insertion for key.\n";
         if (ret == QF_NO_SPACE)
@@ -116,7 +131,8 @@ template <typename ItemType, size_t bits_per_item>
 Status GQFilter<ItemType, bits_per_item>::Contain(
     const ItemType &key) const {
     uint64_t hash = hash64(key);
-    uint64_t count = qf_count_key_value(&qf, hash, 0, 0);
+    // uint64_t count = qf_count_key_value(&qf, hash & mask, 0, QF_NO_LOCK | QF_KEY_IS_HASH);
+    uint64_t count = qf_count_key_value(&qf, hash & mask, 0, 0);
     return count > 0 ? Ok : NotFound;
 }
 
