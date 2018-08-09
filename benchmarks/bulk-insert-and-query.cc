@@ -54,6 +54,7 @@
 #include <vector>
 
 #include "cuckoofilter.h"
+#include "cuckoofilter_stable.h"
 #include "xorfilter.h"
 #include "xorfilter_plus.h"
 #include "bloom.h"
@@ -135,6 +136,22 @@ struct FilterAPI {};
 template <typename ItemType, size_t bits_per_item, template <size_t> class TableType>
 struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType>> {
   using Table = CuckooFilter<ItemType, bits_per_item, TableType>;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table * table) {
+    if (0 != table->Add(key)) {
+      throw logic_error("The filter is too small to hold all of the elements");
+    }
+  }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return (0 == table->Contain(key));
+  }
+};
+
+template <typename ItemType, size_t bits_per_item, template <size_t> class TableType>
+struct FilterAPI<CuckooFilterStable<ItemType, bits_per_item, TableType>> {
+  using Table = CuckooFilterStable<ItemType, bits_per_item, TableType>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table * table) {
     if (0 != table->Add(key)) {
@@ -389,6 +406,13 @@ int main(int argc, char * argv[]) {
   if (algorithmId == 11 || algorithmId < 0) {
       auto cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
+  }
+
+  if (algorithmId == 12 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilterStable<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
+          add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "CuckooStable12" << cf << endl;
   }
 
 }
