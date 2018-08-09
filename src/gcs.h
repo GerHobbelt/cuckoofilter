@@ -46,12 +46,12 @@ inline uint32_t reduce(uint32_t hash, uint32_t n) {
 
 int numberOfLeadingZeros64(uint64_t x) {
     // If x is 0, the result is undefined.
-	return __builtin_clzl(x);
+    return __builtin_clzl(x);
 }
 
 int numberOfLeadingZeros32(uint32_t x) {
     // If x is 0, the result is undefined.
-	return __builtin_clz(x);
+    return __builtin_clz(x);
 }
 
 uint64_t readNumber(uint64_t* data, uint64_t pos, int bitCount) {
