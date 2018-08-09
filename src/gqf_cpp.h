@@ -58,7 +58,7 @@ class GQFilter {
     do {
         qbits++;
         nslots = (1ULL << qbits);
-    } while(nslots * 9 < n * 10);
+    } while(nslots * 0.5 < n);
     uint64_t nhashbits = qbits + 8;
     mask = (1ULL << nhashbits) - 1;
 
