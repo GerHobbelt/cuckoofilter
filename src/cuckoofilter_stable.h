@@ -12,9 +12,9 @@
 
 namespace cuckoofilter {
 
-inline uint32_t reduce(uint32_t hash, uint32_t n) {
+inline uint32_t reduce(uint64_t hash, uint32_t n) {
     // http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-    return (uint32_t) (((uint64_t) hash * n) >> 32);
+    return (uint32_t) (((hash & 0xffffffffL) * n) >> 32);
 }
 
 // A stable cuckoo filter class exposes a Bloomier filter interface,
@@ -47,7 +47,6 @@ class CuckooFilterStable {
 
   inline size_t IndexHash(uint32_t hv) const {
     size_t x = reduce(hv, bucketCount);
-// std::cout << "CuckooFilterStable: IndexHash " << hv << " = " << x << "\n";
     return x;
   }
 
@@ -62,7 +61,7 @@ class CuckooFilterStable {
                                    uint32_t* tag) const {
     const uint64_t hash = hasher_(item);
     *index = IndexHash((uint32_t) hash);
-    *tag = TagHash(hash);
+    *tag = TagHash(hash >> 32);
   }
 
   inline size_t AltIndex(const size_t index, const uint32_t tag) const {
@@ -72,7 +71,7 @@ class CuckooFilterStable {
     // 0x5bd1e995 is the hash constant from MurmurHash2
     // return IndexHash((uint32_t)(index ^ (tag * 0x5bd1e995)));
 
-    uint32_t hash = (uint32_t) (tag * 0x5bd1e995);
+    uint64_t hash = tag * 0xc4ceb9fe1a85ec53L;
     // we don't use xor; instead, we ensure bucketCount is even,
     // and bucket2 = bucketCount - bucket - y,
     // and if negative add the bucketCount,
