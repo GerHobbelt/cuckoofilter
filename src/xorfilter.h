@@ -33,10 +33,6 @@ inline uint64_t hash64(uint64_t x) {
     // return x;
 }
 
-inline uint32_t fingerprint(uint64_t hash) {
-    return (uint32_t) (hash & ((1 << 8) - 1));
-}
-
 inline uint32_t reduce(uint32_t hash, uint32_t n) {
     // http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     return (uint32_t) (((uint64_t) hash * n) >> 32);
@@ -79,7 +75,7 @@ size_t getHashFromHash(uint64_t hash, int index, int blockLength) {
     return (size_t) r;
 }
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily = TwoIndependentMultiplyShift>
 class XorFilter {
 
@@ -87,18 +83,21 @@ class XorFilter {
   size_t arrayLength;
   size_t blockLength;
   uint32_t hashIndex;
-  uint8_t *fingerprints;
+  FingerprintType *fingerprints;
 
   HashFamily hasher;
 
-  double BitsPerItem() const { return 8.0; }
+  inline FingerprintType fingerprint(const uint64_t hash) const {
+    return (FingerprintType) hash;
+  }
 
  public:
   explicit XorFilter(const size_t size) : hasher() {
     this->size = size;
     this->arrayLength = 3 + 1.23 * size;
     this->blockLength = arrayLength / 3;
-    fingerprints = new uint8_t[arrayLength];
+    fingerprints = new FingerprintType[arrayLength]();
+    std::fill_n(fingerprints, arrayLength, 0);
   }
 
   ~XorFilter() { delete[] fingerprints; }
@@ -116,12 +115,12 @@ class XorFilter {
   size_t Size() const { return size; }
 
   // size of the filter in bytes.
-  size_t SizeInBytes() const { return arrayLength; }
+  size_t SizeInBytes() const { return arrayLength * sizeof(FingerprintType); }
 };
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily>
-Status XorFilter<ItemType, bits_per_item, HashFamily>::AddAll(
+Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
     const vector<ItemType> keys, const size_t start, const size_t end) {
     int m = arrayLength;
     uint64_t* reverseOrder = new uint64_t[size];
@@ -195,14 +194,14 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
     this->hashIndex = hashIndex;
 
     for (int i = reverseOrderPos - 1; i >= 0; i--) {
-        // the key we insert next
+        // the hash of the key we insert next
         uint64_t hash = reverseOrder[i];
         int found = reverseH[i];
         // which entry in the table we can change
         int change = -1;
         // we set table[change] to the fingerprint of the key,
         // unless the other two entries are already occupied
-        uint8_t xor2 = fingerprint(hash);
+        FingerprintType xor2 = fingerprint(hash);
         for (int hi = 0; hi < 3; hi++) {
             size_t h = getHashFromHash(hash, hi, blockLength);
             if (found == hi) {
@@ -213,7 +212,7 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
                 xor2 ^= fingerprints[h];
             }
         }
-        fingerprints[change] = (uint8_t) xor2;
+        fingerprints[change] = xor2;
     }
 
     delete [] t2;
@@ -224,12 +223,12 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
     return Ok;
 }
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily>
-Status XorFilter<ItemType, bits_per_item, HashFamily>::Contain(
+Status XorFilter<ItemType, FingerprintType, HashFamily>::Contain(
     const ItemType &key) const {
     uint64_t hash = hash64(key + hashIndex);
-    uint8_t f = fingerprint(hash);
+    FingerprintType f = fingerprint(hash);
     uint32_t r0 = (uint32_t) hash;
     uint32_t r1 = (uint32_t) (hash >> 16);
     uint32_t r2 = (uint32_t) (hash >> 32);
@@ -237,20 +236,15 @@ Status XorFilter<ItemType, bits_per_item, HashFamily>::Contain(
     uint32_t h1 = reduce(r1, blockLength) + blockLength;
     uint32_t h2 = reduce(r2, blockLength) + 2 * blockLength;
     f ^= fingerprints[h0] ^ fingerprints[h1] ^ fingerprints[h2];
-    return (f & 0xff) == 0 ? Ok : NotFound;
+    return f == 0 ? Ok : NotFound;
 }
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily>
-std::string XorFilter<ItemType, bits_per_item, HashFamily>::Info() const {
+std::string XorFilter<ItemType, FingerprintType, HashFamily>::Info() const {
   std::stringstream ss;
   ss << "XorFilter Status:\n"
      << "\t\tKeys stored: " << Size() << "\n";
-  if (Size() > 0) {
-    ss << "\t\tbit/key:   " << BitsPerItem() << "\n";
-  } else {
-    ss << "\t\tbit/key:   N/A\n";
-  }
   return ss.str();
 }
 }  // namespace xorfilter
