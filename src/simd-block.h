@@ -299,7 +299,6 @@ SimdBlockFilter64<HashFamily>::Find(const uint64_t key) const noexcept {
   const uint32_t bucket_idx = hash & directory_mask_;
   __m256i mask1, mask2;
   MakeMask(hash >> log_num_buckets_, &mask1, &mask2);
-  assert(is_aligned(reinterpret_cast<__m256i *>(directory_) + 2 * bucket_idx, 64));
   const __m256i bucket1 =
       reinterpret_cast<__m256i *>(directory_)[2 * bucket_idx];
   const __m256i bucket2 =

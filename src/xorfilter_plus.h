@@ -47,11 +47,13 @@ public:
         bitsArraySize = 1 + (size_t) ((bitCount + 63) / 64);
         bits = new uint64_t[bitsArraySize];
         memcpy(bits, sourceBits, (bitsArraySize - 1) * sizeof(uint64_t));
+        bits[bitsArraySize - 1] = 0; // this was missing?
         uint64_t length = bitsArraySize * 64;
         size_t numWords = (size_t) ((length + 63) / 64);
         size_t numCounts = (size_t) ((length + 8 * 64 - 1) / (8 * 64)) * 2;
         countsArraySize = numCounts + 1;
         counts = new uint64_t[countsArraySize];
+        memset(counts,0,countsArraySize*sizeof(uint64_t));// presumably, this is needed (code below seems to happily use 'counts[pos + 1] |=', and there is a +1 in numCounts + 1
         uint64_t c = 0;
         size_t pos = 0;
         for (size_t i = 0; i < numWords; i += 8, pos += 2) {
@@ -95,13 +97,13 @@ public:
                 bitCount64(x & ((1L << pos) - 1))) << 1) +
                 ((x >> pos) & 1);
     }
-
+    
     uint64_t getAndPartialRank(uint64_t pos) {
         size_t word = (size_t) (pos >> 6);
         uint64_t x = bits[word];
         return ((bitCount64(x & ((1L << pos) - 1))) << 1) + ((x >> pos) & 1);
     }
-
+    
     uint64_t remainingRank(uint64_t pos) {
         size_t word = (size_t) (pos >> 6);
         size_t block = (word >> 2) & ~1;
@@ -178,8 +180,8 @@ class XorFilterPlus {
   size_t arrayLength;
   size_t blockLength;
   uint32_t hashIndex;
-  FingerprintType *fingerprints = 0;
-  Rank9 *rank = 0;
+  FingerprintType *fingerprints = NULL;
+  Rank9 *rank = NULL;
   size_t totalSizeInBytes;
 
   HashFamily hasher;
@@ -196,7 +198,7 @@ class XorFilterPlus {
   }
 
   ~XorFilterPlus() {
-    if (fingerprints != 0) {
+    if (fingerprints != NULL) {
         delete[] fingerprints;
     }
     if (rank != 0) {
@@ -255,7 +257,7 @@ Status XorFilterPlus<ItemType, FingerprintType, HashFamily>::AddAll(
         alone[2] = new int[blockLength];
         int alonePos[] = {0, 0, 0};
         for(int nextAlone = 0; nextAlone < 3; nextAlone++) {
-            for (int i = 0; i < blockLength; i++) {
+            for (size_t i = 0; i < blockLength; i++) {
                 if (t2count[nextAlone * blockLength + i] == 1) {
                     alone[nextAlone][alonePos[nextAlone]++] = nextAlone * blockLength + i;
                 }
@@ -279,9 +281,7 @@ Status XorFilterPlus<ItemType, FingerprintType, HashFamily>::AddAll(
                 continue;
             }
             uint64_t hash = t2[i];
-            if (t2count[i] != 1) {
-                assert();
-            }
+            assert (t2count[i] == 1);
             --t2count[i];
             // which index (0, 1, 2) the entry was found
             for (int hi = 0; hi < 3; hi++) {
@@ -344,9 +344,11 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
     delete [] reverseH;
 
     uint64_t bitCount = blockLength;
-    uint64_t *bits = new uint64_t[(bitCount + 63) / 63];
+    size_t wordlen = (bitCount + 63) / 64;
+    uint64_t *bits = new uint64_t[wordlen];//was /63 but it is suspicious
+    memset(bits,0,wordlen*sizeof(uint64_t)); // seems wrong that there is no init
     int setBits = 0;
-    for (int i = 0; i < blockLength; i++) {
+    for (size_t i = 0; i < blockLength; i++) {
         FingerprintType f = fp[i + 2 * blockLength];
         if (f != 0) {
             bits[i >> 6] |= (1L << (i & 63));
@@ -354,10 +356,14 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
         }
     }
     fingerprints = new FingerprintType[2 * blockLength + setBits];
-    for (int i = 0; i < 2 * blockLength; i++) {
+    for (size_t i = 0; i < 2 * blockLength; i++) {
         fingerprints[i] = fp[i];
     }
-    for (int i = 2 * blockLength, j = i; i < 3 * blockLength;) {
+    // there are setBits uninitialized values?
+    for (size_t i = 2 * blockLength; i < 2 * blockLength + setBits; i++) {
+        fingerprints[i] = 0; // to be verified?
+    }
+    for (size_t i = 2 * blockLength, j = i; i < 3 * blockLength;) {
         FingerprintType f = fp[i++];
         if (f != 0) {
             fingerprints[j++] = f;
@@ -385,9 +391,9 @@ Status XorFilterPlus<ItemType, FingerprintType, HashFamily>::Contain(
     uint32_t h1 = reduce(r1, blockLength) + blockLength;
     uint32_t h2a = reduce(r2, blockLength);
     f ^= fingerprints[h0] ^ fingerprints[h1];
-    uint64_t getAndPartialRank = rank->getAndPartialRank(h2a);
-    if ((getAndPartialRank & 1) == 1) {
-        uint32_t h2x = (uint32_t) ((getAndPartialRank >> 1) + rank->remainingRank(h2a));
+    uint64_t AndPartialRank = rank->getAndPartialRank(h2a);
+    if ((AndPartialRank & 1) == 1) {
+        uint32_t h2x = (uint32_t) ((AndPartialRank >> 1) + rank->remainingRank(h2a));
         f ^= fingerprints[h2x + 2 * blockLength];
     }
     return f == 0 ? Ok : NotFound;

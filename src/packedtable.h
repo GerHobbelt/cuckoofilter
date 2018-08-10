@@ -126,7 +126,9 @@ class PackedTable {
     if (bits_per_tag == 5) {
       // 1 dirbits per tag, 16 bits per bucket
       p = buckets_ + (i * 2);
-      uint16_t bucketbits = *((uint16_t *)p);
+      //uint16_t bucketbits = *((uint16_t *)p);
+      uint16_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint16_t));
       codeword = bucketbits & 0x0fff;
       tags[0] = ((bucketbits >> 8) & kDirBitsMask);
       tags[1] = ((bucketbits >> 9) & kDirBitsMask);
@@ -135,7 +137,9 @@ class PackedTable {
     } else if (bits_per_tag == 6) {
       // 2 dirbits per tag, 20 bits per bucket
       p = buckets_ + ((20 * i) >> 3);
-      uint32_t bucketbits = *((uint32_t *)p);
+      uint32_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint32_t));
+      // uint32_t bucketbits = *((uint32_t *)p);
       codeword = (*((uint16_t *)p) >> ((i & 1) << 2)) & 0x0fff;
       tags[0] = (bucketbits >> (8 + ((i & 1) << 2))) & kDirBitsMask;
       tags[1] = (bucketbits >> (10 + ((i & 1) << 2))) & kDirBitsMask;
@@ -144,7 +148,9 @@ class PackedTable {
     } else if (bits_per_tag == 7) {
       // 3 dirbits per tag, 24 bits per bucket
       p = buckets_ + (i << 1) + i;
-      uint32_t bucketbits = *((uint32_t *)p);
+      uint32_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint32_t));
+      // uint32_t bucketbits = *((uint32_t *)p);
       codeword = *((uint16_t *)p) & 0x0fff;
       tags[0] = (bucketbits >> 8) & kDirBitsMask;
       tags[1] = (bucketbits >> 11) & kDirBitsMask;
@@ -153,7 +159,9 @@ class PackedTable {
     } else if (bits_per_tag == 8) {
       // 4 dirbits per tag, 28 bits per bucket
       p = buckets_ + ((28 * i) >> 3);
-      uint32_t bucketbits = *((uint32_t *)p);
+      uint32_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint32_t));
+      //uint32_t bucketbits = *((uint32_t *)p);
       codeword = (*((uint16_t *)p) >> ((i & 1) << 2)) & 0x0fff;
       tags[0] = (bucketbits >> (8 + ((i & 1) << 2))) & kDirBitsMask;
       tags[1] = (bucketbits >> (12 + ((i & 1) << 2))) & kDirBitsMask;
@@ -162,7 +170,9 @@ class PackedTable {
     } else if (bits_per_tag == 9) {
       // 5 dirbits per tag, 32 bits per bucket
       p = buckets_ + (i * 4);
-      uint32_t bucketbits = *((uint32_t *)p);
+      //uint32_t bucketbits = *((uint32_t *)p);
+      uint32_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint32_t));
       codeword = *((uint16_t *)p) & 0x0fff;
       tags[0] = (bucketbits >> 8) & kDirBitsMask;
       tags[1] = (bucketbits >> 13) & kDirBitsMask;
@@ -171,7 +181,9 @@ class PackedTable {
     } else if (bits_per_tag == 13) {
       // 9 dirbits per tag,  48 bits per bucket
       p = buckets_ + (i * 6);
-      uint64_t bucketbits = *((uint64_t *)p);
+      uint64_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint64_t));
+      //uint64_t bucketbits = *((uint64_t *)p); // undefined
       codeword = *((uint16_t *)p) & 0x0fff;
       tags[0] = (bucketbits >> 8) & kDirBitsMask;
       tags[1] = (bucketbits >> 17) & kDirBitsMask;
@@ -180,7 +192,9 @@ class PackedTable {
     } else if (bits_per_tag == 17) {
       // 13 dirbits per tag, 64 bits per bucket
       p = buckets_ + (i << 3);
-      uint64_t bucketbits = *((uint64_t *)p);
+      uint64_t bucketbits;
+      memcpy(&bucketbits,p,sizeof(uint64_t));
+      //uint64_t bucketbits = *((uint64_t *)p);
       codeword = *((uint16_t *)p) & 0x0fff;
       tags[0] = (bucketbits >> 8) & kDirBitsMask;
       tags[1] = (bucketbits >> 21) & kDirBitsMask;
@@ -242,7 +256,7 @@ class PackedTable {
             PrintUtil::bytes_to_hex((char *)&codeword, 2).c_str());
 
     /* write out the bucketbits to its place*/
-    const char *p = buckets_ + ((kBitsPerBucket * i) >> 3);
+    char *p = buckets_ + ((kBitsPerBucket * i) >> 3);
     DPRINTF(DEBUG_TABLE, "original bucketbits=%s\n",
             PrintUtil::bytes_to_hex((char *)p, 8).c_str());
 
@@ -289,20 +303,24 @@ class PackedTable {
               PrintUtil::bytes_to_hex((char *)p, 4).c_str());
     } else if (kBitsPerBucket == 48) {
       // 9 dirbits per tag
-      *((uint64_t *)p) &= 0xffff000000000000ULL;
-      *((uint64_t *)p) |= codeword | ((uint64_t)highbits[0] << 8) |
+      uint64_t p64;
+      memcpy(&p64,p,sizeof(p64));
+      p64 &= 0xffff000000000000ULL;
+      p64 |= codeword | ((uint64_t)highbits[0] << 8) |
                           ((uint64_t)highbits[1] << 17) |
                           ((uint64_t)highbits[2] << 26) |
                           ((uint64_t)highbits[3] << 35);
+      memcpy(p,&p64,sizeof(p64));
       DPRINTF(DEBUG_TABLE, " new bucketbits=%s\n",
               PrintUtil::bytes_to_hex((char *)p, 4).c_str());
 
     } else if (kBitsPerBucket == 64) {
       // 13 dirbits per tag
-      *((uint64_t *)p) = codeword | ((uint64_t)highbits[0] << 8) |
+      uint64_t p64 = codeword | ((uint64_t)highbits[0] << 8) |
                          ((uint64_t)highbits[1] << 21) |
                          ((uint64_t)highbits[2] << 34) |
                          ((uint64_t)highbits[3] << 47);
+      memcpy(p,&p64,sizeof(p64));
     }
     DPRINTF(DEBUG_TABLE, "PackedTable::WriteBucket done\n");
   }
@@ -321,9 +339,11 @@ class PackedTable {
     // ReadBucket(i2, tags2);
 
     uint16_t v;
-    uint64_t bucketbits1 = *((uint64_t *)(buckets_ + kBitsPerBucket * i1 / 8));
-    uint64_t bucketbits2 = *((uint64_t *)(buckets_ + kBitsPerBucket * i2 / 8));
-
+    //uint64_t bucketbits1 = *((uint64_t *)(buckets_ + kBitsPerBucket * i1 / 8));
+    //uint64_t bucketbits2 = *((uint64_t *)(buckets_ + kBitsPerBucket * i2 / 8)); // undefined
+    uint64_t bucketbits1, bucketbits2;
+    memcpy(&bucketbits1, buckets_ + kBitsPerBucket * i1 / 8, sizeof(uint64_t));
+    memcpy(&bucketbits2, buckets_ + kBitsPerBucket * i2 / 8, sizeof(uint64_t));
     tags1[0] = (bucketbits1 >> 8) & kDirBitsMask;
     tags1[1] = (bucketbits1 >> 17) & kDirBitsMask;
     tags1[2] = (bucketbits1 >> 26) & kDirBitsMask;

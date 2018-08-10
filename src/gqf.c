@@ -530,7 +530,10 @@ static inline uint64_t get_slot(const QF *qf, uint64_t index)
 																			 QF_SLOTS_PER_BLOCK)->slots[(index %
 																																QF_SLOTS_PER_BLOCK)
 																			 * qf->metadata->bits_per_slot / 8];
-	return (uint64_t)(((*p) >> (((index % QF_SLOTS_PER_BLOCK) *
+	// you cannot just do *p to get the value, undefined behavior
+	uint64_t pvalue;
+	memcpy(&pvalue,p,sizeof(pvalue));
+	return (uint64_t)((pvalue >> (((index % QF_SLOTS_PER_BLOCK) *
 															 qf->metadata->bits_per_slot) % 8)) &
 										BITMASK(qf->metadata->bits_per_slot));
 }
@@ -544,7 +547,10 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value)
 																			 QF_SLOTS_PER_BLOCK)->slots[(index %
 																																QF_SLOTS_PER_BLOCK)
 																			 * qf->metadata->bits_per_slot / 8];
-	uint64_t t = *p;
+	// This is undefined:	
+	//uint64_t t = *p;
+	uint64_t t;
+	memcpy(&t,p,sizeof(t));
 	uint64_t mask = BITMASK(qf->metadata->bits_per_slot);
 	uint64_t v = value;
 	int shift = ((index % QF_SLOTS_PER_BLOCK) * qf->metadata->bits_per_slot) % 8;
@@ -552,7 +558,9 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value)
 	v <<= shift;
 	t &= ~mask;
 	t |= v;
-	*p = t;
+	// this is undefined
+	//*p = t;
+	memcpy(p,&t,sizeof(t));
 }
 
 #endif
@@ -1752,6 +1760,8 @@ uint64_t qf_use(QF* qf, void* buffer, uint64_t buffer_len)
 
 void *qf_destroy(QF *qf)
 {
+	assert(qf->runtimedata->locks != NULL);
+	free((void*)qf->runtimedata->locks);
 	assert(qf->runtimedata != NULL);
 	free(qf->runtimedata);
 

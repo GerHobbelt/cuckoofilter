@@ -73,7 +73,7 @@ uint64_t readNumber(uint64_t* data, uint64_t pos, int bitCount) {
 uint64_t readUntilZeroMore(uint64_t* data, int count, int index) {
     while (true) {
         uint64_t x = data[++index];
-        if (x == -1L) {
+        if (x == UINT64_MAX) {
             count += 64;
             continue;
         }
@@ -113,12 +113,9 @@ uint64_t writeNumber(uint64_t* data, uint64_t pos, uint64_t x, int bitCount) {
 
 uint64_t writeGolombRice(uint64_t* data, uint64_t pos, int shift, uint64_t value) {
     uint64_t q = value >> shift;
-    if (q < 63) {
-        uint64_t m = (2L << q) - 2;
-        pos = writeNumber(data, pos, m, (int) (q + 1));
-     } else {
-        assert();
-    }
+    assert(q < 63);
+    uint64_t m = (2L << q) - 2;
+    pos = writeNumber(data, pos, m, (int) (q + 1));
     pos = writeNumber(data, pos, value & ((1L << shift) - 1), shift);
     return pos;
 }
@@ -149,9 +146,7 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
     int count3 = length;
     // verify it is monotone
     for (int i = 1; i < count3; i++) {
-        if (data[i - 1] > data[i]) {
-            assert();
-        }
+        assert (data[i - 1] <= data[i]);
     }
     uint64_t diff = data[count3 - 1] - data[0];
     uint64_t factor = getScaleFactor(diff, count3);
@@ -174,9 +169,7 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
         int expected = (int) ((i * factor) >> 32) + add;
         int got = data[i];
         int x = got - expected;
-        if (x < 0) {
-            assert();
-        }
+        assert(x >= 0);
         group3[i] = x;
     }
     int a = MAX_VALUE32;
@@ -193,9 +186,7 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
         int d = group2[i >> SHIFT2] * FACTOR2;
         int x = group3[i];
         group3[i] -= d;
-        if (group3[i] < 0) {
-             assert();
-        }
+        assert(group3[i] >= 0);
         a = min(a, x);
         if ((i + 1) >> SHIFT1 != i >> SHIFT1 || i == count3 - 1) {
             group1[i >> SHIFT1] = a / FACTOR1;
@@ -231,7 +222,9 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
     int pos = 0;
     list->dataBits = bitCount1 * count1 + bitCount2 * count2 + bitCount3 * count3;
     list->startLevel1 = pos;
-    list->data = new uint64_t[(list->dataBits + 63) / 64];
+    size_t wordlen = (list->dataBits + 63) / 64;
+    list->data = new uint64_t[wordlen];
+    memset(list->data,0,wordlen*sizeof(uint64_t)); // presumably this is needed
     for (int i = 0; i < count1; i++) {
         pos = writeNumber(list->data, pos, group1[i], bitCount1);
     }
@@ -329,8 +322,11 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::AddAll(
         data[i] = (b << 32) | (h & fingerprintMask);
     }
     qsort(data, len, sizeof(uint64_t), compare_uint64);
-    uint64_t* buckets = new uint64_t[10L * fingerprintBits * len / 64];
+    size_t bucketslen = 10L * fingerprintBits * len / 64;
+    uint64_t* buckets = new uint64_t[bucketslen];
+    memset(buckets,0,bucketslen*sizeof(uint64_t)); // seems needed
     uint32_t* startList = new uint32_t[bucketCount + 1];
+    memset(startList,0,(bucketCount + 1)*sizeof(uint32_t));// might be needed
     int bucket = 0;
     long last = 0;
     int pos = 0;
@@ -375,13 +371,7 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::Contain(
     int startNext = (int) startPair;
 
 
-/*
-std::cout << "Contain p=" << p
-    << " " << startNext
-    << "\n";
-*/
-
-    long x = 0;
+    uint64_t x = 0;
     while (p < startNext) {
         long q = readUntilZero(bucketData, p);
         p += q + 1;
