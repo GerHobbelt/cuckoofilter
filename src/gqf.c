@@ -8,11 +8,7 @@
  */
 
 #include <stdlib.h>
-#if 0
 # include <assert.h>
-#else
-# define assert(x)
-#endif
 #include <string.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -736,6 +732,7 @@ static inline void shift_remainders(QF *qf, const uint64_t start_index, const
 
 #endif
 
+/*
 static inline void qf_dump_block(const QF *qf, uint64_t i)
 {
 	uint64_t j;
@@ -798,6 +795,7 @@ void qf_dump(const QF *qf)
 	}
 
 }
+*/
 
 static inline void find_next_n_empty_slots(QF *qf, uint64_t from, uint64_t n,
 																					 uint64_t *indices)
@@ -1848,7 +1846,7 @@ int64_t qf_resize_malloc(QF *qf, uint64_t nslots)
 		qfi_next(&qfi);
 		int ret = qf_insert(&new_qf, key, value, count, QF_NO_LOCK | QF_KEY_IS_HASH);
 		if (ret < 0) {
-			fprintf(stderr, "Failed to insert key: %ld into the new CQF.\n", key);
+			fprintf(stderr, "Failed to insert key: %lld into the new CQF.\n", key);
 			return ret;
 		}
 		ret_numkeys++;
@@ -1889,7 +1887,7 @@ uint64_t qf_resize(QF* qf, uint64_t nslots, void* buffer, uint64_t buffer_len)
 		qfi_next(&qfi);
 		int ret = qf_insert(&new_qf, key, value, count, QF_NO_LOCK | QF_KEY_IS_HASH);
 		if (ret < 0) {
-			fprintf(stderr, "Failed to insert key: %ld into the new CQF.\n", key);
+			fprintf(stderr, "Failed to insert key: %lld into the new CQF.\n", key);
 			abort();
 		}
 	} while(!qfi_end(&qfi));
@@ -2517,7 +2515,7 @@ void qf_multi_merge(const QF *qf_arr[], int nqf, QF *qfr)
 			qfi_next(&qfi_arr[0]);
 			iters++;
 		} while(!qfi_end(&qfi_arr[0]));
-		DEBUG_CQF("Num of iterations: %lu\n", iters);
+		DEBUG_CQF("Num of iterations: %llu\n", iters);
 	}
 
 	DEBUG_CQF("%s", "Final CQF after merging.\n");
