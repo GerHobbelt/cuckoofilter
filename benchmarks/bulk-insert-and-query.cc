@@ -78,6 +78,7 @@ const size_t SAMPLE_SIZE = 1000 * 1000;
 
 // The statistics gathered for each table type:
 struct Statistics {
+  size_t add_count;
   double adds_per_nano;
   map<int, double> finds_per_nano; // The key is the percent of queries that were expected
                                    // to be positive
@@ -94,12 +95,12 @@ string StatisticsTableHeader(int type_width, int find_percent_count) {
   ostringstream os;
 
   os << string(type_width, ' ');
-  os << setw(12) << right << "Million";
+  os << setw(12) << right << "million";
   for (int i = 0; i < find_percent_count; ++i) {
-    os << setw(8) << "Find";
+    os << setw(8) << "find";
   }
   os << setw(8) << "" << setw(11) << "" << setw(11)
-     << "optimal" << setw(8) << "wasted" << endl;
+     << "optimal" << setw(8) << "wasted" << setw(8) << "million" << endl;
 
   os << string(type_width, ' ');
   os << setw(12) << right << "adds/sec";
@@ -108,7 +109,7 @@ string StatisticsTableHeader(int type_width, int find_percent_count) {
        << static_cast<int>(100 * i / static_cast<double>(find_percent_count - 1)) << '%';
   }
   os << setw(9) << "ε" << setw(11) << "bits/item" << setw(11)
-     << "bits/item" << setw(8) << "space";
+     << "bits/item" << setw(8) << "space" << setw(8) << "keys";
   return os.str();
 }
 
@@ -125,7 +126,8 @@ basic_ostream<CharT, Traits>& operator<<(
   const auto minbits = log2(1 / stats.false_positive_probabilty);
   os << setw(7) << setprecision(3) << stats.false_positive_probabilty * 100 << '%'
      << setw(11) << setprecision(2) << stats.bits_per_item << setw(11) << minbits
-     << setw(7) << setprecision(1) << 100 * (stats.bits_per_item / minbits - 1) << '%';
+     << setw(7) << setprecision(1) << 100 * (stats.bits_per_item / minbits - 1) << '%'
+     << setw(8) << setprecision(1) << (stats.add_count / 1000000.);
 
   return os;
 }
@@ -275,6 +277,7 @@ Statistics FilterBenchmark(
   // for the XorFilter
   FilterAPI<Table>::AddAll(to_add, 0, add_count, &filter);
 
+  result.add_count = add_count;
   result.adds_per_nano = add_count / static_cast<double>(NowNanos() - start_time);
   result.bits_per_item = static_cast<double>(CHAR_BIT * filter.SizeInBytes()) / add_count;
 
