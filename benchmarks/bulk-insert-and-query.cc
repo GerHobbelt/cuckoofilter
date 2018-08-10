@@ -9,7 +9,7 @@
 //
 // Example usage:
 //
-// for alg in `seq 0 1 14`; do for num in `seq 2 2 20`; ./bulk-insert-and-query.exe ${num}000000 ${alg}; done; done > results.txt
+// for alg in `seq 0 1 14`; do for num in `seq 2 2 20`; do ./bulk-insert-and-query.exe ${num}000000 ${alg}; done; done > results.txt
 
 #include <climits>
 #include <iomanip>
