@@ -29,7 +29,6 @@ inline int mostSignificantBit(uint64_t x) {
     return 63 - numberOfLeadingZeros64(x);
 }
 
-
 inline int bitCount64(uint64_t x) {
     return __builtin_popcount(x);
 }
@@ -129,10 +128,6 @@ inline uint64_t hash64(uint64_t x) {
     // return x;
 }
 
-inline uint32_t fingerprint(uint64_t hash) {
-    return (uint32_t) (hash & ((1 << 8) - 1));
-}
-
 inline uint32_t reduce(uint32_t hash, uint32_t n) {
     // http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     return (uint32_t) (((uint64_t) hash * n) >> 32);
@@ -175,7 +170,7 @@ size_t getHashFromHash(uint64_t hash, int index, int blockLength) {
     return (size_t) r;
 }
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily = TwoIndependentMultiplyShift>
 class XorFilterPlus {
 
@@ -183,13 +178,15 @@ class XorFilterPlus {
   size_t arrayLength;
   size_t blockLength;
   uint32_t hashIndex;
-  uint8_t *fingerprints = 0;
+  FingerprintType *fingerprints = 0;
   Rank9 *rank = 0;
   size_t totalSizeInBytes;
 
   HashFamily hasher;
 
-  double BitsPerItem() const { return 8.0; }
+  inline FingerprintType fingerprint(const uint64_t hash) const {
+    return (FingerprintType) hash;
+  }
 
  public:
   explicit XorFilterPlus(const size_t size) : hasher() {
@@ -223,9 +220,9 @@ class XorFilterPlus {
   size_t SizeInBytes() const { return totalSizeInBytes; }
 };
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily>
-Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::AddAll(
+Status XorFilterPlus<ItemType, FingerprintType, HashFamily>::AddAll(
     const vector<ItemType> keys, const size_t start, const size_t end) {
     int m = arrayLength;
     uint64_t* reverseOrder = new uint64_t[size];
@@ -315,19 +312,21 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
         hashIndex++;
     }
     this->hashIndex = hashIndex;
+
     delete [] t2;
     delete [] t2count;
 
-    uint8_t *fp = new uint8_t[3 * blockLength];
+    FingerprintType *fp = new FingerprintType[3 * blockLength];
+    std::fill_n(fp, 3 * blockLength, 0);
     for (int i = reverseOrderPos - 1; i >= 0; i--) {
-        // the key we insert next
+        // the hash of the key we insert next
         uint64_t hash = reverseOrder[i];
         int found = reverseH[i];
         // which entry in the table we can change
         int change = -1;
         // we set table[change] to the fingerprint of the key,
         // unless the other two entries are already occupied
-        uint8_t xor2 = fingerprint(hash);
+        FingerprintType xor2 = (FingerprintType) fingerprint(hash);
         for (int hi = 0; hi < 3; hi++) {
             size_t h = getHashFromHash(hash, hi, blockLength);
             if (found == hi) {
@@ -338,8 +337,9 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
                 xor2 ^= fp[h];
             }
         }
-        fp[change] = (uint8_t) xor2;
+        fp[change] = xor2;
     }
+
     delete [] reverseOrder;
     delete [] reverseH;
 
@@ -347,18 +347,18 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
     uint64_t *bits = new uint64_t[(bitCount + 63) / 63];
     int setBits = 0;
     for (int i = 0; i < blockLength; i++) {
-        int f = fp[i + 2 * blockLength];
+        FingerprintType f = fp[i + 2 * blockLength];
         if (f != 0) {
             bits[i >> 6] |= (1L << (i & 63));
             setBits++;
         }
     }
-    fingerprints = new uint8_t[2 * blockLength + setBits];
+    fingerprints = new FingerprintType[2 * blockLength + setBits];
     for (int i = 0; i < 2 * blockLength; i++) {
         fingerprints[i] = fp[i];
     }
     for (int i = 2 * blockLength, j = i; i < 3 * blockLength;) {
-        uint8_t f = fp[i++];
+        FingerprintType f = fp[i++];
         if (f != 0) {
             fingerprints[j++] = f;
         }
@@ -366,17 +366,18 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
     delete [] fp;
     rank = new Rank9(bits, bitCount);
     delete [] bits;
-    totalSizeInBytes = 2 * blockLength + setBits + rank->getBitCount() / 8;
+    totalSizeInBytes = (2 * blockLength + setBits) * sizeof(FingerprintType)
+        + rank->getBitCount() / 8;
     return Ok;
 }
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily>
-Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::Contain(
+Status XorFilterPlus<ItemType, FingerprintType, HashFamily>::Contain(
     const ItemType &key) const {
     // uint64_t hash = hasher(key + hashIndex);
     uint64_t hash = hash64(key + hashIndex);
-    uint8_t f = fingerprint(hash);
+    FingerprintType f = (FingerprintType) fingerprint(hash);
     uint32_t r0 = (uint32_t) hash;
     uint32_t r1 = (uint32_t) (hash >> 16);
     uint32_t r2 = (uint32_t) (hash >> 32);
@@ -389,20 +390,15 @@ Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::Contain(
         uint32_t h2x = (uint32_t) ((getAndPartialRank >> 1) + rank->remainingRank(h2a));
         f ^= fingerprints[h2x + 2 * blockLength];
     }
-    return (f & 0xff) == 0 ? Ok : NotFound;
+    return f == 0 ? Ok : NotFound;
 }
 
-template <typename ItemType, size_t bits_per_item,
+template <typename ItemType, typename FingerprintType,
           typename HashFamily>
-std::string XorFilterPlus<ItemType, bits_per_item, HashFamily>::Info() const {
+std::string XorFilterPlus<ItemType, FingerprintType, HashFamily>::Info() const {
   std::stringstream ss;
   ss << "XorFilterPlus Status:\n"
      << "\t\tKeys stored: " << Size() << "\n";
-  if (Size() > 0) {
-    ss << "\t\tbit/key:   " << BitsPerItem() << "\n";
-  } else {
-    ss << "\t\tbit/key:   N/A\n";
-  }
   return ss.str();
 }
 }  // namespace xorfilter_plus

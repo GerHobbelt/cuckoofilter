@@ -7,45 +7,9 @@
 // filters with varying rates of expected success. For instance, at 75%, three out of
 // every four values passed to Contain() were earlier Add()ed.
 //
-// Example output:
+// Example usage:
 //
-// $ for num in 55 75 85; do echo $num:; /usr/bin/time -f 'time: %e seconds' ./bulk-insert-and-query.exe ${num}00000; echo; done
-// 55:
-//                   Million    Find    Find    Find    Find    Find                       optimal  wasted
-//                  adds/sec      0%     25%     50%     75%    100%       ε  bits/item  bits/item   space
-//      Cuckoo12       23.78   37.24   35.04   37.17   37.35   36.35  0.131%      18.30       9.58   91.1%
-//    SemiSort13       11.63   17.55   17.08   17.14   17.54   22.32  0.064%      18.30      10.62   72.4%
-//       Cuckoo8       35.31   49.32   50.24   49.98   48.32   50.49  2.044%      12.20       5.61  117.4%
-//     SemiSort9       13.99   22.23   22.78   22.13   23.16   24.06  1.207%      12.20       6.37   91.5%
-//      Cuckoo16       27.06   36.94   37.12   35.31   36.81   35.10  0.009%      24.40      13.46   81.4%
-//    SemiSort17       10.37   15.70   15.84   15.78   15.55   15.93  0.004%      24.40      14.72   65.8%
-//    SimdBlock8       74.22   72.34   74.23   74.34   74.69   74.32  0.508%      12.20       7.62   60.1%
-// time: 14.34 seconds
-//
-// 75:
-//                   Million    Find    Find    Find    Find    Find                       optimal  wasted
-//                  adds/sec      0%     25%     50%     75%    100%       ε  bits/item  bits/item   space
-//      Cuckoo12       15.61   37.24   37.23   37.34   37.15   37.36  0.173%      13.42       9.18   46.2%
-//    SemiSort13        8.77   17.11   15.70   17.34   17.73   18.86  0.087%      13.42      10.17   31.9%
-//       Cuckoo8       23.46   48.81   48.14   39.48   49.28   49.65  2.806%       8.95       5.16   73.6%
-//     SemiSort9       11.14   23.98   20.80   23.37   24.35   21.41  1.428%       8.95       6.13   46.0%
-//      Cuckoo16       15.08   36.64   36.75   36.83   36.59   36.74  0.011%      17.90      13.11   36.5%
-//    SemiSort17        8.02   15.63   15.66   15.87   15.67   15.88  0.006%      17.90      14.02   27.6%
-//    SimdBlock8       73.26   74.41   74.28   70.86   72.02   70.69  2.071%       8.95       5.59   60.0%
-// time: 18.06 seconds
-//
-// 85:
-//                   Million    Find    Find    Find    Find    Find                       optimal  wasted
-//                  adds/sec      0%     25%     50%     75%    100%       ε  bits/item  bits/item   space
-//      Cuckoo12       22.74   32.49   32.69   32.58   32.85   32.71  0.102%      23.69       9.94  138.3%
-//    SemiSort13        9.97   13.16   13.15   13.54   16.01   19.58  0.056%      23.69      10.80  119.4%
-//       Cuckoo8       30.67   36.86   36.79   37.09   36.97   36.87  1.581%      15.79       5.98  163.9%
-//     SemiSort9       10.96   15.49   15.37   15.40   15.18   15.63  1.047%      15.79       6.58  140.1%
-//      Cuckoo16       27.84   33.74   33.72   33.69   33.75   33.62  0.007%      31.58      13.80  128.8%
-//    SemiSort17        9.51   12.83   12.80   12.64   12.86   12.50  0.004%      31.58      14.65  115.6%
-//    SimdBlock8       54.84   58.37   59.73   59.13   60.11   60.12  0.144%      15.79       9.44   67.3%
-// time: 19.43 seconds
-//
+// for alg in `seq 0 1 14`; do for num in `seq 2 2 20`; ./bulk-insert-and-query.exe ${num}000000 ${alg}; done; done > results.txt
 
 #include <climits>
 #include <iomanip>
@@ -184,9 +148,9 @@ struct FilterAPI<SimdBlockFilter<>> {
   }
 };
 
-template <typename ItemType, size_t bits_per_item>
-struct FilterAPI<XorFilter<ItemType, bits_per_item>> {
-  using Table = XorFilter<ItemType, bits_per_item>;
+template <typename ItemType, typename FingerprintType>
+struct FilterAPI<XorFilter<ItemType, FingerprintType>> {
+  using Table = XorFilter<ItemType, FingerprintType>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
   }
@@ -198,9 +162,9 @@ struct FilterAPI<XorFilter<ItemType, bits_per_item>> {
   }
 };
 
-template <typename ItemType, size_t bits_per_item>
-struct FilterAPI<XorFilterPlus<ItemType, bits_per_item>> {
-  using Table = XorFilterPlus<ItemType, bits_per_item>;
+template <typename ItemType, typename FingerprintType>
+struct FilterAPI<XorFilterPlus<ItemType, FingerprintType>> {
+  using Table = XorFilterPlus<ItemType, FingerprintType>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
   }
@@ -325,97 +289,111 @@ int main(int argc, char * argv[]) {
   const vector<uint64_t> to_add = GenerateRandom64(add_count);
   const vector<uint64_t> to_lookup = GenerateRandom64(SAMPLE_SIZE);
 
-  constexpr int NAME_WIDTH = 13;
+  constexpr int NAME_WIDTH = 16;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
   if (algorithmId == 0 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter<uint64_t, 8>>(
+          XorFilter<uint64_t, uint8_t>>(
           add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
   }
 
   if (algorithmId == 1 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilterPlus<uint64_t, 8>>(
+          XorFilter<uint64_t, uint16_t>>(
         add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "Xor+8" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor16" << cf << endl;
   }
 
   if (algorithmId == 2 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          GcsFilter<uint64_t, 8>>(
-          add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "GCS" << cf << endl;
+          XorFilterPlus<uint64_t, uint8_t>>(
+        add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "Xor+8" << cf << endl;
   }
 
   if (algorithmId == 3 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilterPlus<uint64_t, uint16_t>>(
+        add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "Xor+16" << cf << endl;
+  }
+
+  if (algorithmId == 4 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           BloomFilter<uint64_t, 10 /* bits per item */>>(
           add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "Bloom" << cf << endl;
   }
 
-  if (algorithmId == 4 || algorithmId < 0) {
+  if (algorithmId == 5 || algorithmId < 0) {
+      auto cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
+  }
+
+  if (algorithmId == 6 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          GcsFilter<uint64_t, 8>>(
+          add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "GCS" << cf << endl;
+  }
+
+  if (algorithmId == 7 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilterStable<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
+          add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "CuckooStable12" << cf << endl;
+  }
+
+  if (algorithmId == 8 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           GQFilter<uint64_t, 8>>(
           add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "CQF" << cf << endl;
   }
 
-  if (algorithmId == 5 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
-  }
-
-  if (algorithmId == 6 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(
-          add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "SemiSort13" << cf << endl;
-  }
-
-  if (algorithmId == 7 || algorithmId < 0) {
+  if (algorithmId == 9 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 8 /* bits per item */, SingleTable /* not semi-sorted*/>>(
           add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "Cuckoo8" << cf << endl;
   }
 
-  if (algorithmId == 8 || algorithmId < 0) {
+  if (algorithmId == 10 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 9 /* bits per item */, PackedTable /* semi-sorted*/>>(
+          CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
           add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "SemiSort9" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
   }
 
-  if (algorithmId == 9 || algorithmId < 0) {
+  if (algorithmId == 11 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 16 /* bits per item */, SingleTable /* not semi-sorted*/>>(
           add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "Cuckoo16" << cf << endl;
   }
 
-  if (algorithmId == 10 || algorithmId < 0) {
+  if (algorithmId == 12 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilter<uint64_t, 9 /* bits per item */, PackedTable /* semi-sorted*/>>(
+          add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "SemiSort9" << cf << endl;
+  }
+
+  if (algorithmId == 13 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(
+          add_count, to_add, to_lookup);
+      cout << setw(NAME_WIDTH) << "SemiSort13" << cf << endl;
+  }
+
+  if (algorithmId == 14 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 17 /* bits per item */, PackedTable /* semi-sorted*/>>(
           add_count, to_add, to_lookup);
       cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
-  }
-
-  if (algorithmId == 11 || algorithmId < 0) {
-      auto cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
-  }
-
-  if (algorithmId == 12 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          CuckooFilterStable<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup);
-      cout << setw(NAME_WIDTH) << "CuckooStable12" << cf << endl;
   }
 
 }
