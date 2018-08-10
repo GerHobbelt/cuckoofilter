@@ -1760,6 +1760,8 @@ uint64_t qf_use(QF* qf, void* buffer, uint64_t buffer_len)
 
 void *qf_destroy(QF *qf)
 {
+	assert(qf->runtimedata->locks != NULL);
+	free((void*)qf->runtimedata->locks);
 	assert(qf->runtimedata != NULL);
 	free(qf->runtimedata);
 
