@@ -1670,11 +1670,6 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 	total_num_bytes = sizeof(qfmetadata) + size;
 	if (buffer == NULL || total_num_bytes > buffer_len)
 		return total_num_bytes;
-
-
-printf("   (qf allocated bytes: %lld, fingerprint bits: %lld)\n", total_num_bytes, key_remainder_bits);
-
-
 	memset(buffer, 0, total_num_bytes);
 	qf->metadata = (qfmetadata *)(buffer);
 	qf->blocks = (qfblock *)(qf->metadata + 1);

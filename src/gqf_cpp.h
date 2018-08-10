@@ -58,19 +58,9 @@ class GQFilter {
     do {
         qbits++;
         nslots = (1ULL << qbits);
-    } while(nslots * 0.5 < n);
+    } while(nslots * 0.9 < n);
     uint64_t nhashbits = qbits + 8;
     mask = (1ULL << nhashbits) - 1;
-
-    // this is according to the formula in the paper (not checked for correctness)
-    uint64_t fingerprintBits = nhashbits;
-    uint64_t fingerprintSlots = nslots;
-	while (fingerprintSlots > 1) {
-		fingerprintBits--;
-		fingerprintSlots >>= 1;
-	}
-    bitsPerItem = ((nslots * fingerprintBits) / n) + 2.125;
-    bytesUsed = (uint64_t)(n * bitsPerItem) / 8;
 
 // std::cout << "(CQF: nslots " << nslots << " nhashbits " << nhashbits << " n " << n << " bitsPerItem " << bitsPerItem << ")\n";
 
@@ -80,7 +70,11 @@ class GQFilter {
         std::cout << "Can't allocate CQF.\n";
         abort();
     }
+
     // qf_set_auto_resize(&qf, true);
+
+    bytesUsed = qf.metadata->total_size_in_bytes;
+    bitsPerItem = (double) bytesUsed / n;
 
   }
 
@@ -109,6 +103,7 @@ template <typename ItemType, size_t bits_per_item>
 Status GQFilter<ItemType, bits_per_item>::Add(
     const ItemType &key) {
     uint64_t hash = hash64(key);
+    // uint64_t hash = key;
     // int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK | QF_KEY_IS_HASH);
     int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK);
     if (ret < 0) {
@@ -128,6 +123,7 @@ template <typename ItemType, size_t bits_per_item>
 Status GQFilter<ItemType, bits_per_item>::Contain(
     const ItemType &key) const {
     uint64_t hash = hash64(key);
+    // uint64_t hash = key;
     // uint64_t count = qf_count_key_value(&qf, hash & mask, 0, QF_NO_LOCK | QF_KEY_IS_HASH);
     uint64_t count = qf_count_key_value(&qf, hash & mask, 0, 0);
     return count > 0 ? Ok : NotFound;
