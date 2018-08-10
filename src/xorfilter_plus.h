@@ -258,7 +258,7 @@ Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::AddAll(
         alone[2] = new int[blockLength];
         int alonePos[] = {0, 0, 0};
         for(int nextAlone = 0; nextAlone < 3; nextAlone++) {
-            for (int i = 0; i < blockLength; i++) {
+            for (size_t i = 0; i < blockLength; i++) {
                 if (t2count[nextAlone * blockLength + i] == 1) {
                     alone[nextAlone][alonePos[nextAlone]++] = nextAlone * blockLength + i;
                 }
@@ -282,9 +282,7 @@ Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::AddAll(
                 continue;
             }
             uint64_t hash = t2[i];
-            if (t2count[i] != 1) {
-                assert();
-            }
+            assert (t2count[i] == 1);
             --t2count[i];
             // which index (0, 1, 2) the entry was found
             for (int hi = 0; hi < 3; hi++) {
@@ -346,7 +344,7 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
     uint64_t bitCount = blockLength;
     uint64_t *bits = new uint64_t[(bitCount + 63) / 63];
     int setBits = 0;
-    for (int i = 0; i < blockLength; i++) {
+    for (size_t i = 0; i < blockLength; i++) {
         int f = fp[i + 2 * blockLength];
         if (f != 0) {
             bits[i >> 6] |= (1L << (i & 63));
@@ -354,10 +352,10 @@ std::cout << "WARNING: hashIndex " << hashIndex << "\n";
         }
     }
     fingerprints = new uint8_t[2 * blockLength + setBits];
-    for (int i = 0; i < 2 * blockLength; i++) {
+    for (size_t i = 0; i < 2 * blockLength; i++) {
         fingerprints[i] = fp[i];
     }
-    for (int i = 2 * blockLength, j = i; i < 3 * blockLength;) {
+    for (size_t i = 2 * blockLength, j = i; i < 3 * blockLength;) {
         uint8_t f = fp[i++];
         if (f != 0) {
             fingerprints[j++] = f;

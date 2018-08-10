@@ -73,7 +73,7 @@ uint64_t readNumber(uint64_t* data, uint64_t pos, int bitCount) {
 uint64_t readUntilZeroMore(uint64_t* data, int count, int index) {
     while (true) {
         uint64_t x = data[++index];
-        if (x == -1L) {
+        if (x == UINT64_MAX) {
             count += 64;
             continue;
         }
@@ -113,12 +113,9 @@ uint64_t writeNumber(uint64_t* data, uint64_t pos, uint64_t x, int bitCount) {
 
 uint64_t writeGolombRice(uint64_t* data, uint64_t pos, int shift, uint64_t value) {
     uint64_t q = value >> shift;
-    if (q < 63) {
-        uint64_t m = (2L << q) - 2;
-        pos = writeNumber(data, pos, m, (int) (q + 1));
-     } else {
-        assert();
-    }
+    assert(q < 63);
+    uint64_t m = (2L << q) - 2;
+    pos = writeNumber(data, pos, m, (int) (q + 1));
     pos = writeNumber(data, pos, value & ((1L << shift) - 1), shift);
     return pos;
 }
@@ -149,9 +146,7 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
     int count3 = length;
     // verify it is monotone
     for (int i = 1; i < count3; i++) {
-        if (data[i - 1] > data[i]) {
-            assert();
-        }
+        assert (data[i - 1] <= data[i]);
     }
     uint64_t diff = data[count3 - 1] - data[0];
     uint64_t factor = getScaleFactor(diff, count3);
@@ -174,9 +169,7 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
         int expected = (int) ((i * factor) >> 32) + add;
         int got = data[i];
         int x = got - expected;
-        if (x < 0) {
-            assert();
-        }
+        assert(x >= 0);
         group3[i] = x;
     }
     int a = MAX_VALUE32;
@@ -193,9 +186,7 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
         int d = group2[i >> SHIFT2] * FACTOR2;
         int x = group3[i];
         group3[i] -= d;
-        if (group3[i] < 0) {
-             assert();
-        }
+        assert(group3[i] >= 0);
         a = min(a, x);
         if ((i + 1) >> SHIFT1 != i >> SHIFT1 || i == count3 - 1) {
             group1[i >> SHIFT1] = a / FACTOR1;
@@ -375,13 +366,7 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::Contain(
     int startNext = (int) startPair;
 
 
-/*
-std::cout << "Contain p=" << p
-    << " " << startNext
-    << "\n";
-*/
-
-    long x = 0;
+    uint64_t x = 0;
     while (p < startNext) {
         long q = readUntilZero(bucketData, p);
         p += q + 1;

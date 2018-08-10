@@ -77,12 +77,18 @@ class SingleTable {
       tag = *((uint8_t *)p);
     } else if (bits_per_tag == 12) {
       p += j + (j >> 1);
-      tag = *((uint16_t *)p) >> ((j & 1) << 2);
+      uint16_t p16;
+      memcpy(&p16,p,sizeof(p16));
+      tag = p16 >> ((j & 1) << 2);
+      // tag = *((uint16_t *)p) >> ((j & 1) << 2);// undefined behavior 
     } else if (bits_per_tag == 16) {
       p += (j << 1);
-      tag = *((uint16_t *)p);
+      uint16_t p16;
+      memcpy(&p16,p,sizeof(p16));
+      tag = p16;
     } else if (bits_per_tag == 32) {
-      tag = ((uint32_t *)p)[j];
+      memcpy(&tag,(uint32_t *)p + j,sizeof(tag));
+      //tag = ((uint32_t *)p)[j];
     }
     return tag & kTagMask;
   }
@@ -108,11 +114,23 @@ class SingleTable {
     } else if (bits_per_tag == 12) {
       p += (j + (j >> 1));
       if ((j & 1) == 0) {
-        ((uint16_t *)p)[0] &= 0xf000;
-        ((uint16_t *)p)[0] |= tag;
+        // to avoid undefined behavior
+        uint16_t val;
+        memcpy(&val,p,sizeof(val));
+        val &= 0xf000;
+        val |= tag;
+        memcpy(p,&val,sizeof(val));
+        //((uint16_t *)p)[0] &= 0xf000;
+        //((uint16_t *)p)[0] |= tag;
       } else {
-        ((uint16_t *)p)[0] &= 0x000f;
-        ((uint16_t *)p)[0] |= (tag << 4);
+        // to avoid undefined behavior
+        uint16_t val;
+        memcpy(&val,p,sizeof(val));
+        val &= 0x000f;
+        val |= (tag << 4);
+        memcpy(p,&val,sizeof(val));
+        //((uint16_t *)p)[0] &= 0x000f;
+        //((uint16_t *)p)[0] |= (tag << 4);
       }
     } else if (bits_per_tag == 16) {
       ((uint16_t *)p)[j] = tag;
@@ -125,9 +143,11 @@ class SingleTable {
                                const uint32_t tag) const {
     const char *p1 = buckets_[i1].bits_;
     const char *p2 = buckets_[i2].bits_;
-
-    uint64_t v1 = *((uint64_t *)p1);
-    uint64_t v2 = *((uint64_t *)p2);
+    uint64_t v1,v2;
+    memcpy(&v1, p1, sizeof(v1));
+    memcpy(&v2, p2, sizeof(v2));
+    //uint64_t v1 = *((uint64_t *)p1);// undefined behavior
+    //uint64_t v2 = *((uint64_t *)p2);
 
     // caution: unaligned access & assuming little endian
     if (bits_per_tag == 4 && kTagsPerBucket == 4) {
