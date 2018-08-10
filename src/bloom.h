@@ -86,6 +86,7 @@ class BloomFilter {
     this->bitCount = nextPrime(n * bits_per_item);
     this->arrayLength = (bitCount + 63) / 64;
     data = new uint64_t[arrayLength];
+    std::fill_n(data, arrayLength, 0);
   }
 
   ~BloomFilter() { delete[] data; }
