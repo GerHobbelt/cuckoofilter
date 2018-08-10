@@ -239,6 +239,7 @@ Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::AddAll(
         memset(t2, 0, sizeof(uint64_t[m]));
         for(size_t i = start; i < end; i++) {
             uint64_t k = keys[i];
+            // uint64_t hash = hasher(k + hashIndex);
             uint64_t hash = hash64(k + hashIndex);
             int h0 = reduce((int) (hash), blockLength);
             int h1 = reduce((int) (hash >> 16), blockLength) + blockLength;
@@ -373,6 +374,7 @@ template <typename ItemType, size_t bits_per_item,
           typename HashFamily>
 Status XorFilterPlus<ItemType, bits_per_item, HashFamily>::Contain(
     const ItemType &key) const {
+    // uint64_t hash = hasher(key + hashIndex);
     uint64_t hash = hash64(key + hashIndex);
     uint8_t f = fingerprint(hash);
     uint32_t r0 = (uint32_t) hash;
