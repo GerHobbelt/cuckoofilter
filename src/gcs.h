@@ -222,7 +222,9 @@ void MultiStageMonotoneList_generate(MultiStageMonotoneList* list, uint32_t* dat
     int pos = 0;
     list->dataBits = bitCount1 * count1 + bitCount2 * count2 + bitCount3 * count3;
     list->startLevel1 = pos;
-    list->data = new uint64_t[(list->dataBits + 63) / 64];
+    size_t wordlen = (list->dataBits + 63) / 64;
+    list->data = new uint64_t[wordlen];
+    memset(list->data,0,wordlen*sizeof(uint64_t)); // presumably this is needed
     for (int i = 0; i < count1; i++) {
         pos = writeNumber(list->data, pos, group1[i], bitCount1);
     }
@@ -320,8 +322,11 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::AddAll(
         data[i] = (b << 32) | (h & fingerprintMask);
     }
     qsort(data, len, sizeof(uint64_t), compare_uint64);
-    uint64_t* buckets = new uint64_t[10L * fingerprintBits * len / 64];
+    size_t bucketslen = 10L * fingerprintBits * len / 64;
+    uint64_t* buckets = new uint64_t[bucketslen];
+    memset(buckets,0,bucketslen*sizeof(uint64_t)); // seems needed
     uint32_t* startList = new uint32_t[bucketCount + 1];
+    memset(startList,0,(bucketCount + 1)*sizeof(uint32_t));// might be needed
     int bucket = 0;
     long last = 0;
     int pos = 0;
