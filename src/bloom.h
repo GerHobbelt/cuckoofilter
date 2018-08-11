@@ -42,7 +42,7 @@ size_t getBestK(size_t m, size_t n) {
     return max(1, (int) round((double) m / n * log(2)));
 }
 
-uint64_t getBit(uint32_t index) {
+inline uint64_t getBit(uint32_t index) {
     return 1L << (index & 63);
 }
 
