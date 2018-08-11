@@ -249,11 +249,18 @@ Statistics FilterBenchmark(
   for (const double found_probability : {0.0, 0.25, 0.50, 0.75, 1.00}) {
     const auto to_lookup_mixed = MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
         &to_add[add_count], found_probability);
+    size_t found_before = found_count;
     const auto start_time = NowNanos();
     for (const auto v : to_lookup_mixed) {
       found_count += FilterAPI<Table>::Contain(v, &filter);
     }
     const auto lookup_time = NowNanos() - start_time;
+    size_t found_this_section = found_count - found_before;
+    if (found_probability == 1.00) {
+        if (found_this_section != to_lookup_mixed.size()) {
+           cerr << "Expected to find " << to_lookup_mixed.size() << " found " << found_this_section << endl;
+        }
+    }
     result.finds_per_nano[100 * found_probability] =
         SAMPLE_SIZE / static_cast<double>(lookup_time);
     if (0.0 == found_probability) {
