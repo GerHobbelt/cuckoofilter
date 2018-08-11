@@ -30,7 +30,7 @@ inline int mostSignificantBit(uint64_t x) {
 }
 
 inline int bitCount64(uint64_t x) {
-    return __builtin_popcount(x);
+    return __builtin_popcountll(x);
 }
 
 class Rank9 {
@@ -47,26 +47,48 @@ public:
         bitsArraySize = 1 + (size_t) ((bitCount + 63) / 64);
         bits = new uint64_t[bitsArraySize];
         memcpy(bits, sourceBits, (bitsArraySize - 1) * sizeof(uint64_t));
-        bits[bitsArraySize - 1] = 0; // this was missing?
+        bits[bitsArraySize - 1] = 0;
         uint64_t length = bitsArraySize * 64;
         size_t numWords = (size_t) ((length + 63) / 64);
         size_t numCounts = (size_t) ((length + 8 * 64 - 1) / (8 * 64)) * 2;
         countsArraySize = numCounts + 1;
         counts = new uint64_t[countsArraySize];
-        memset(counts,0,countsArraySize*sizeof(uint64_t));// presumably, this is needed (code below seems to happily use 'counts[pos + 1] |=', and there is a +1 in numCounts + 1
+        // just to be sure
+        memset(counts, 0, sizeof(uint64_t[countsArraySize]));
         uint64_t c = 0;
-        size_t pos = 0;
-        for (size_t i = 0; i < numWords; i += 8, pos += 2) {
+        uint64_t pos = 0;
+        for (uint64_t i = 0; i < numWords; i += 8, pos += 2) {
             counts[pos] = c;
+            counts[pos + 1] = 0;
             c += bitCount64(bits[i]);
-            for (size_t j = 1; j < 8; j++) {
-                counts[pos + 1] |= (i + j <= numWords ? c - counts[pos] : 0x1ffL) << 9 * (j - 1);
+            for (uint64_t j = 1; j < 8; j++) {
+                counts[pos + 1] |= (c - counts[pos]) << 9 * (j - 1);
                 if (i + j < numWords) {
                     c += bitCount64(bits[i + j]);
                 }
             }
         }
         counts[numCounts] = c;
+        /*
+        // self-test (should be somewhere else)
+        for(int i=0, j = 0; i<bitCount;i++) {
+            uint64_t bit1 = sourceBits[i >> 6] & (1L << (i & 63));
+            uint64_t bit2 = (bits[i >> 6] >> (i & 63)) & 1;
+            if ((bit2 == 0 ? 0 : 1) != (bit1 == 0 ? 0 : 1)) {
+                std::cout << "WARNING: get incorrect " << i << "\n";
+            }
+            if (rank(i) != j) {
+                std::cout << "WARNING: rank incorrect " << i << "\n";
+            }
+            int rag = getAndPartialRank(i) + (remainingRank(i) << 1);
+            if ((rag >> 1) != j) {
+                std::cout << "WARNING: getAndPartialRank incorrect " << i << "\n";
+            }
+            if (bit2 != 0) {
+                j++;
+            }
+        }
+        */
     }
 
     ~Rank9() {
@@ -75,40 +97,31 @@ public:
     }
 
     uint64_t rank(uint64_t pos) {
-        size_t word = (size_t) (pos >> 6);
-        size_t block = (word >> 2) & ~1;
-        size_t offset = (word & 7) - 1;
+        uint64_t word = pos >> 6;
+        uint64_t block = (word >> 2) & ~1;
+        int32_t offset = (word & 7) - 1;
         return counts[block] +
-                (counts[block + 1] >> (offset + ((offset >> (32 - 4)) & 8)) * 9 & 0x1ff) +
-                bitCount64(bits[word] & ((1L << pos) - 1));
+                ((counts[block + 1] >> (offset + ((offset >> 28) & 8)) * 9) & 0x1ff) +
+                bitCount64(bits[word] & ((1L << (pos & 63)) - 1));
     }
 
     uint64_t get(uint64_t pos) {
         return (bits[(size_t) (pos >> 6)] >> pos) & 1;
     }
 
-    uint64_t rankAndGet(uint64_t pos) {
-        size_t word = (size_t) (pos >> 6);
-        size_t block = (word >> 2) & ~1;
-        size_t offset = (word & 7) - 1;
-        uint64_t x = bits[word];
-        return ((counts[block] +
-                (counts[block + 1] >> (offset + ((offset >> (32 - 4)) & 8)) * 9 & 0x1ff) +
-                bitCount64(x & ((1L << pos) - 1))) << 1) +
-                ((x >> pos) & 1);
-    }
-    
     uint64_t getAndPartialRank(uint64_t pos) {
-        size_t word = (size_t) (pos >> 6);
+        uint64_t word = pos >> 6;
         uint64_t x = bits[word];
-        return ((bitCount64(x & ((1L << pos) - 1))) << 1) + ((x >> pos) & 1);
+        return ((bitCount64(x & ((1L << (pos & 63)) - 1))) << 1) +
+                ((x >> (pos & 63)) & 1);
     }
-    
+
     uint64_t remainingRank(uint64_t pos) {
-        size_t word = (size_t) (pos >> 6);
-        size_t block = (word >> 2) & ~1;
-        size_t offset = (word & 7) - 1;
-        return counts[block] + (counts[block + 1] >> (offset + ((offset >> (32 - 4)) & 8)) * 9 & 0x1ff);
+        uint64_t word = pos >> 6;
+        uint64_t block = (word >> 2) & ~1;
+        int32_t offset = (word & 7) - 1;
+        return counts[block] +
+                ((counts[block + 1] >> (offset + ((offset >> 28) & 8)) * 9) & 0x1ff);
     }
 
     uint64_t getBitCount() {
