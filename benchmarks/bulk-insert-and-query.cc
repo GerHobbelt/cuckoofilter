@@ -9,7 +9,7 @@
 //
 // Example usage:
 //
-// for alg in `seq 0 1 14`; do for num in `seq 2 2 20`; do ./bulk-insert-and-query.exe ${num}000000 ${alg}; done; done > results.txt
+// for alg in `seq 0 1 14`; do for num in `seq 10 10 200`; do ./bulk-insert-and-query.exe ${num}000000 ${alg}; done; done > results.txt
 
 #include <climits>
 #include <iomanip>
@@ -220,7 +220,7 @@ struct FilterAPI<BloomFilter<ItemType, bits_per_item>> {
 
 template <typename Table>
 Statistics FilterBenchmark(
-    size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup) {
+    size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup, int seed) {
   if (add_count > to_add.size()) {
     throw out_of_range("to_add must contain at least add_count values");
   }
@@ -247,8 +247,11 @@ Statistics FilterBenchmark(
 
   size_t found_count = 0;
   for (const double found_probability : {0.0, 0.25, 0.50, 0.75, 1.00}) {
-    const auto to_lookup_mixed = MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
-        &to_add[add_count], found_probability);
+    const auto to_lookup_mixed = seed == -1 ?
+        MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
+        &to_add[add_count], found_probability) :
+        MixInFast(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
+        &to_add[add_count], found_probability, seed);
     size_t found_before = found_count;
     const auto start_time = NowNanos();
     for (const auto v : to_lookup_mixed) {
@@ -258,7 +261,7 @@ Statistics FilterBenchmark(
     size_t found_this_section = found_count - found_before;
     if (found_probability == 1.00) {
         if (found_this_section != to_lookup_mixed.size()) {
-           cerr << "Expected to find " << to_lookup_mixed.size() << " found " << found_this_section << endl;
+           cout << "Expected to find " << to_lookup_mixed.size() << " found " << found_this_section << endl;
         }
     }
     result.finds_per_nano[100 * found_probability] =
@@ -273,7 +276,10 @@ Statistics FilterBenchmark(
 
 int main(int argc, char * argv[]) {
   if (argc < 2) {
-    cerr << "Usage: " << argv[0] << " $NUMBER" << endl;
+    cerr << "Usage: " << argv[0] << " <numberOfEntries> [<algorithmId> [<seed>]]" << endl;
+    cerr << " numberOfEntries: number of keys" << endl;
+    cerr << " algorithmId: -1 for all (default), or 0..n to only run this algorithm" << endl;
+    cerr << " seed: seed for the PRNG; -1 for random seed (default)" << endl;
     return 1;
   }
   stringstream input_string(argv[1]);
@@ -292,9 +298,38 @@ int main(int argc, char * argv[]) {
           return 2;
       }
   }
+  int seed = -1;
+  if (argc > 3) {
+      stringstream input_string_3(argv[3]);
+      input_string_3 >> seed;
+      if (input_string_3.fail()) {
+          cerr << "Invalid number: " << argv[3];
+          return 2;
+      }
+  }
+  const vector<uint64_t> to_add = seed == -1 ?
+    GenerateRandom64(add_count) :
+    GenerateRandom64Fast(add_count, seed);
+  const vector<uint64_t> to_lookup = seed == -1 ?
+    GenerateRandom64(SAMPLE_SIZE) :
+    GenerateRandom64Fast(SAMPLE_SIZE, seed + add_count);
 
-  const vector<uint64_t> to_add = GenerateRandom64(add_count);
-  const vector<uint64_t> to_lookup = GenerateRandom64(SAMPLE_SIZE);
+  if (algorithmId == 100) {
+      // verify entries are unique
+      uint64_t* data = new uint64_t[add_count];
+      for(int i=0; i<add_count; i++) {
+          data[i] = to_add[i];
+      }
+      cout << "Checking for duplicates..." << endl;
+      qsort(data, add_count, sizeof(uint64_t), compare_uint64);
+      for (int i=1; i<add_count; i++) {
+          if (data[i - 1] == data[i]) {
+              std::cout << "Info: duplicate key at " << i << "\n";
+          }
+      }
+      cout << "OK!" << endl;
+      delete[] data;
+  }
 
   constexpr int NAME_WIDTH = 16;
 
@@ -303,103 +338,104 @@ int main(int argc, char * argv[]) {
   if (algorithmId == 0 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           XorFilter<uint64_t, uint8_t>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
   }
 
   if (algorithmId == 1 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           XorFilter<uint64_t, uint16_t>>(
-        add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor16" << cf << endl;
   }
 
   if (algorithmId == 2 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           XorFilterPlus<uint64_t, uint8_t>>(
-        add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor+8" << cf << endl;
   }
 
   if (algorithmId == 3 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           XorFilterPlus<uint64_t, uint16_t>>(
-        add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor+16" << cf << endl;
   }
 
   if (algorithmId == 4 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           BloomFilter<uint64_t, 10 /* bits per item */>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Bloom" << cf << endl;
   }
 
   if (algorithmId == 5 || algorithmId < 0) {
-      auto cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+      auto cf = FilterBenchmark<SimdBlockFilter<>>(
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
   }
 
   if (algorithmId == 6 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           GcsFilter<uint64_t, 8>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "GCS" << cf << endl;
   }
 
   if (algorithmId == 7 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilterStable<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "CuckooStable12" << cf << endl;
   }
 
   if (algorithmId == 8 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           GQFilter<uint64_t, 8>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "CQF" << cf << endl;
   }
 
   if (algorithmId == 9 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 8 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Cuckoo8" << cf << endl;
   }
 
   if (algorithmId == 10 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
   }
 
   if (algorithmId == 11 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 16 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Cuckoo16" << cf << endl;
   }
 
   if (algorithmId == 12 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 9 /* bits per item */, PackedTable /* semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "SemiSort9" << cf << endl;
   }
 
   if (algorithmId == 13 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "SemiSort13" << cf << endl;
   }
 
   if (algorithmId == 14 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 17 /* bits per item */, PackedTable /* semi-sorted*/>>(
-          add_count, to_add, to_lookup);
+          add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
   }
 
