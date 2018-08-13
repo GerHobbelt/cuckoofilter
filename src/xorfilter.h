@@ -188,13 +188,13 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
 
 std::cout << "WARNING: hashIndex " << hashIndex << "\n";
 if (hashIndex == 0) {
-  std::cout << "listing all " << (end - start) << " keys; arrayLength " << arrayLength
+  std::cout << (end - start) << " keys; arrayLength " << arrayLength
       << " blockLength " << blockLength
       << " reverseOrderPos " << reverseOrderPos << "\n";
-  for(size_t i = start; i < end; i++) {
-      uint64_t k = keys[i];
-      std::cout << k << "\n";
-  }
+  // for(size_t i = start; i < end; i++) {
+  //     uint64_t k = keys[i];
+  //     std::cout << k << "\n";
+  // }
   std::cout << "end\n";
 }
 
