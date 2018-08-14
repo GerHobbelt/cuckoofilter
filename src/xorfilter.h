@@ -187,20 +187,42 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
         }
 
 std::cout << "WARNING: hashIndex " << hashIndex << "\n";
-if (hashIndex == 0) {
+if (hashIndex >= 0) {
   std::cout << (end - start) << " keys; arrayLength " << arrayLength
       << " blockLength " << blockLength
       << " reverseOrderPos " << reverseOrderPos << "\n";
+
+    size_t list[1000];
+    int pos = 0;
+    for (size_t i = 0; i < arrayLength; i++) {
+        if (t2count[i] > 1) {
+            std::cout << "  count[" << i << "] = " << t2count[i] << "\n";
+            list[pos++] = i;
+        }
+    }
+    for(size_t i = start; i < end; i++) {
+        uint64_t k = keys[i];
+        uint64_t hash = hash64(k + hashIndex);
+        int h0 = reduce((int) (hash), blockLength);
+        int h1 = reduce((int) (hash >> 16), blockLength) + blockLength;
+        int h2 = reduce((int) (hash >> 32), blockLength) + 2 * blockLength;
+        if (t2count[h0] > 1 || t2count[h1] > 1 || t2count[h2] > 1) {
+            std::cout << "  key " << k << " hash=" << hash << " h0=" << h0 << " h1=" << h1 << " h2=" << h2 << "\n";
+        }
+    }
+
+
   // for(size_t i = start; i < end; i++) {
   //     uint64_t k = keys[i];
   //     std::cout << k << "\n";
   // }
-  std::cout << "end\n";
+  // std::cout << "end\n";
 }
 
 
         hashIndex++;
     }
+std::cout << "ok\n";
 
     this->hashIndex = hashIndex;
 
