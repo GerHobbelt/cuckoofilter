@@ -17,6 +17,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include <stdio.h>
+
 #include "cuckoofilter.h"
 #include "cuckoofilter_stable.h"
 #include "xorfilter.h"
@@ -274,7 +276,51 @@ Statistics FilterBenchmark(
   return result;
 }
 
+void fixEndian(uint64_t* longArray, uint64_t byteCount) {
+    uint8_t* byteArray = (uint8_t*) longArray;
+    uint64_t l=0;
+    uint64_t b=0;
+    while(b<byteCount) {
+        uint64_t x = 0;
+        for(int i=0; i<8; i++) {
+            x = (x << 8) | byteArray[b++];
+        }
+        longArray[l++] = x;
+    }
+}
+
 int main(int argc, char * argv[]) {
+
+/*
+{
+    FILE* fp = fopen("/Users/mueller/Downloads/data1.bin", "r");
+    uint64_t* data = new uint64_t[190000000];
+    size_t len = fread(data, 8L * 190000000, 1, fp);
+    fixEndian(data, 190000000L * 8);
+    cout << "d0 " << data[0] << "\n";
+    cout << "d1000 " << data[1000] << "\n";
+    cout << "d-1 " << data[190000000 - 1] << "\n";
+
+    vector<uint64_t> to_add(190000000);
+    to_add.assign(data, data + 190000000);
+
+    cout << "d0 " << to_add[0] << "\n";
+    cout << "d1000 " << to_add[1000] << "\n";
+    cout << "d-1 " << to_add[190000000 - 1] << "\n";
+
+    XorFilter<uint64_t, uint8_t> f = XorFilter<uint64_t, uint8_t>(190000000);
+    cout << "addAll\n";
+    f.AddAll(to_add, 0, 190000000);
+    cout << "done\n";
+
+    delete [] data;
+    fclose(fp);
+
+
+    if (true) return 1;
+}
+*/
+
   if (argc < 2) {
     cerr << "Usage: " << argv[0] << " <numberOfEntries> [<algorithmId> [<seed>]]" << endl;
     cerr << " numberOfEntries: number of keys" << endl;
