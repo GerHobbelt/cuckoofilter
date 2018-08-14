@@ -324,9 +324,9 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::AddAll(
     qsort(data, len, sizeof(uint64_t), compare_uint64);
     size_t bucketslen = 10L * fingerprintBits * len / 64;
     uint64_t* buckets = new uint64_t[bucketslen];
-    memset(buckets,0,bucketslen*sizeof(uint64_t)); // seems needed
+    memset(buckets, 0, sizeof(uint64_t[bucketslen]));
     uint32_t* startList = new uint32_t[bucketCount + 1];
-    memset(startList,0,(bucketCount + 1)*sizeof(uint32_t));// might be needed
+    memset(startList, 0, sizeof(uint32_t[bucketCount + 1]));
     int bucket = 0;
     long last = 0;
     int pos = 0;
@@ -345,12 +345,11 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::AddAll(
     while (bucket <= bucketCount) {
         startList[bucket++] = pos;
     }
-    // delete[] data;
 
     this->bucketData = buckets;
     startBuckets = 0;
     bucketDataBits = pos;
-    MultiStageMonotoneList_generate(&monotoneList, startList, bucketCount);
+    MultiStageMonotoneList_generate(&monotoneList, startList, bucketCount + 1);
 
     delete[] data;
     delete[] startList;
