@@ -20,19 +20,6 @@ enum Status {
   NotSupported = 3,
 };
 
-inline uint64_t hash64(uint64_t x) {
-    // TODO need to check if this is "fair" (cuckoo filter uses TwoIndependentMultiplyShift)
-    x = x * 0xbf58476d1ce4e5b9L;
-    x = x ^ (x >> 31);
-    return x;
-
-    // mix64
-    // x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
-    // x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
-    // x = x ^ (x >> 31);
-    // return x;
-}
-
 inline uint32_t fingerprint(uint64_t hash) {
     return (uint32_t) (hash & ((1 << 8) - 1));
 }
@@ -44,17 +31,17 @@ inline uint32_t reduce(uint32_t hash, uint32_t n) {
 
 // MultiStageMonotoneList
 
-int numberOfLeadingZeros64(uint64_t x) {
+inline int numberOfLeadingZeros64(uint64_t x) {
     // If x is 0, the result is undefined.
-    return __builtin_clzl(x);
+    return x == 0 ? 64 : __builtin_clzl(x);
 }
 
-int numberOfLeadingZeros32(uint32_t x) {
+inline int numberOfLeadingZeros32(uint32_t x) {
     // If x is 0, the result is undefined.
-    return __builtin_clz(x);
+    return x == 0 ? 32 : __builtin_clz(x);
 }
 
-uint64_t readNumber(uint64_t* data, uint64_t pos, int bitCount) {
+inline uint64_t readNumber(uint64_t* data, uint64_t pos, int bitCount) {
     if (bitCount == 0) {
         return 0;
     }
@@ -249,10 +236,6 @@ inline uint32_t MultiStageMonotoneList_get(const MultiStageMonotoneList* list, u
     return (int) (expected + a * FACTOR1 + b * FACTOR2 + c);
 }
 
-uint64_t MultiStageMonotoneList_getPair(const MultiStageMonotoneList* list, uint32_t i) {
-    return ((uint64_t) MultiStageMonotoneList_get(list, i) << 32) | (MultiStageMonotoneList_get(list, i + 1));
-}
-
 template <typename ItemType, size_t bits_per_item,
           typename HashFamily = TwoIndependentMultiplyShift>
 class GcsFilter {
@@ -317,7 +300,7 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::AddAll(
     fingerprintMask = (1 << fingerprintBits) - 1;
     bucketCount = (int) ((len + averageBucketSize - 1) / averageBucketSize);
     for (int i = 0; i < len; i++) {
-        uint64_t h = hash64(keys[i + start]);
+        uint64_t h = hasher(keys[i + start]);
         uint64_t b = reduce((int) (h >> 32), bucketCount);
         data[i] = (b << 32) | (h & fingerprintMask);
     }
@@ -361,14 +344,12 @@ template <typename ItemType, size_t bits_per_item,
           typename HashFamily>
 Status GcsFilter<ItemType, bits_per_item, HashFamily>::Contain(
     const ItemType &key) const {
-    uint64_t hashCode = hash64(key);
-    int b = reduce((int) (hashCode >> 32), bucketCount);
+    uint64_t hashCode = hasher(key);
+    size_t b = reduce((uint32_t) (hashCode >> 32), bucketCount);
     uint64_t fingerprint = hashCode & fingerprintMask;
 
-    uint64_t startPair = MultiStageMonotoneList_getPair(&monotoneList, b);
-    int p = (int) (startPair >> 32);
-    int startNext = (int) startPair;
-
+    size_t p = MultiStageMonotoneList_get(&monotoneList, b);
+    size_t startNext = MultiStageMonotoneList_get(&monotoneList, b + 1);
 
     uint64_t x = 0;
     while (p < startNext) {
