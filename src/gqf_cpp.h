@@ -26,31 +26,20 @@ enum Status {
   NotSupported = 3,
 };
 
-inline uint64_t hash64(uint64_t x) {
-    // TODO need to check if this is "fair" (cuckoo filter uses TwoIndependentMultiplyShift)
-    x = x * 0xbf58476d1ce4e5b9L;
-    x = x ^ (x >> 31);
-    return x;
-
-    // mix64
-    // x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
-    // x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
-    // x = x ^ (x >> 31);
-    // return x;
-}
-
-template <typename ItemType, size_t bits_per_item>
+template <typename ItemType, size_t bits_per_item,
+    typename HashFamily = TwoIndependentMultiplyShift>
 class GQFilter {
 
   QF qf;
   uint64_t mask;
   uint64_t bytesUsed;
   double bitsPerItem;
+  HashFamily hasher;
 
   double BitsPerItem() const { return bitsPerItem; }
 
  public:
-  explicit GQFilter(const size_t n) {
+  explicit GQFilter(const size_t n) : hasher() {
 
     uint64_t qbits;
     uint64_t nslots;
@@ -99,10 +88,11 @@ class GQFilter {
   size_t SizeInBytes() const { return bytesUsed; }
 };
 
-template <typename ItemType, size_t bits_per_item>
-Status GQFilter<ItemType, bits_per_item>::Add(
+template <typename ItemType, size_t bits_per_item,
+    typename HashFamily>
+Status GQFilter<ItemType, bits_per_item, HashFamily>::Add(
     const ItemType &key) {
-    uint64_t hash = hash64(key);
+    uint64_t hash = hasher(key);
     // uint64_t hash = key;
     // int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK | QF_KEY_IS_HASH);
     int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK);
@@ -119,18 +109,20 @@ Status GQFilter<ItemType, bits_per_item>::Add(
     return Ok;
 }
 
-template <typename ItemType, size_t bits_per_item>
-Status GQFilter<ItemType, bits_per_item>::Contain(
+template <typename ItemType, size_t bits_per_item,
+    typename HashFamily>
+Status GQFilter<ItemType, bits_per_item, HashFamily>::Contain(
     const ItemType &key) const {
-    uint64_t hash = hash64(key);
+    uint64_t hash = hasher(key);
     // uint64_t hash = key;
     // uint64_t count = qf_count_key_value(&qf, hash & mask, 0, QF_NO_LOCK | QF_KEY_IS_HASH);
     uint64_t count = qf_count_key_value(&qf, hash & mask, 0, 0);
     return count > 0 ? Ok : NotFound;
 }
 
-template <typename ItemType, size_t bits_per_item>
-std::string GQFilter<ItemType, bits_per_item>::Info() const {
+template <typename ItemType, size_t bits_per_item,
+    typename HashFamily>
+std::string GQFilter<ItemType, bits_per_item, HashFamily>::Info() const {
   std::stringstream ss;
   ss << "GQFilter Status:\n"
      << "\t\tKeys stored: " << Size() << "\n";
