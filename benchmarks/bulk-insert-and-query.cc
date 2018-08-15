@@ -244,8 +244,13 @@ Statistics FilterBenchmark(
   if (add_count > to_add.size()) {
     throw out_of_range("to_add must contain at least add_count values");
   }
+  size_t actual_sample_size = SAMPLE_SIZE;
+  if (actual_sample_size > add_count) {
+    cout << "WARNING: Your set contains only " << add_count << ". We can't very well support a sample size of " <<   SAMPLE_SIZE << endl;
+    actual_sample_size = add_count;
+  }
 
-  if (SAMPLE_SIZE > to_lookup.size()) {
+  if (actual_sample_size > to_lookup.size()) {
     throw out_of_range("to_lookup must contain at least SAMPLE_SIZE values");
   }
   size_t intersectionsize = intersection_size(to_add, to_lookup);
@@ -271,15 +276,18 @@ Statistics FilterBenchmark(
   size_t found_count = 0;
   for (const double found_probability : {0.0, 0.25, 0.50, 0.75, 1.00}) {
     const auto to_lookup_mixed = seed == -1 ?
-        MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
+        MixIn(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
         &to_add[add_count], found_probability) :
-        MixInFast(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
+        MixInFast(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
         &to_add[add_count], found_probability, seed);
+    assert(to_lookup_mixed.size() == actual_sample_size);
     size_t true_match = intersection_size(to_lookup_mixed,to_add);
-    double trueproba =  true_match /  static_cast<double>(to_add.size()) ;
+    double trueproba =  true_match /  static_cast<double>(actual_sample_size) ;
+    double bestpossiblematch = fabs(round(found_probability * actual_sample_size) / static_cast<double>(actual_sample_size) - found_probability);
+    double tolerance = bestpossiblematch > 0.01 ? bestpossiblematch : 0.01;
     double probadiff = fabs(trueproba - found_probability);
-    if(probadiff >= 0.01) {
-      cerr << " You claim to have a find proba. of " << found_probability << " but actual is " << trueproba << endl;
+    if(probadiff >= tolerance) {
+      cerr << "WARNING: You claim to have a find proba. of " << found_probability << " but actual is " << trueproba << endl;
     }
     size_t found_before = found_count;
     const auto start_time = NowNanos();
@@ -289,17 +297,18 @@ Statistics FilterBenchmark(
     const auto lookup_time = NowNanos() - start_time;
     size_t found_this_section = found_count - found_before;
     if (found_this_section < true_match) {
-           cout << "Expected to find at least " << true_match << " found " << found_this_section << endl;
-           cout << "This is a bug!" << endl;
+           cerr << "ERROR: Expected to find at least " << true_match << " found " << found_this_section << endl;
+           cerr << "ERROR: This is a potential bug!" << endl;
     }
     if (found_probability == 1.00) {
         if (found_this_section != to_lookup_mixed.size()) {
-           cout << "Expected to find " << to_lookup_mixed.size() << " found " << found_this_section << endl;
-           cout << "Actual intersection is " << true_match << endl;
+           cerr << "ERROR: Expected to find " << to_lookup_mixed.size() << " found " << found_this_section << endl;
+           cerr << "ERROR: Actual intersection is " << true_match << endl;
+           cerr << "ERROR: This is a potential bug!" << endl;
         }
     }
     result.finds_per_nano[100 * found_probability] =
-        SAMPLE_SIZE / static_cast<double>(lookup_time);
+        actual_sample_size / static_cast<double>(lookup_time);
     if (0.0 == found_probability) {
       ////////////////////////////
       // This is obviously technically wrong!!! The assumption is that there is no overlap between the random
@@ -309,7 +318,7 @@ Statistics FilterBenchmark(
       // result.false_positive_probabilty =
       //    found_count / static_cast<double>(to_lookup_mixed.size());
       if(to_lookup_mixed.size() == intersectionsize) {
-        cerr << "fpp is probably meaningless! " << endl;
+        cerr << "WARNING: fpp is probably meaningless! " << endl;
       }
       result.false_positive_probabilty = found_count / static_cast<double>(to_lookup_mixed.size() - intersectionsize);
     }
@@ -405,6 +414,7 @@ int main(int argc, char * argv[]) {
     for(uint64_t i = 0; i < to_add.size(); i++) to_add[i] = i;
     for(uint64_t i = 0; i < to_lookup.size(); i++) to_lookup[i] = i + to_add.size();
   }
+  assert(to_lookup.size() == SAMPLE_SIZE);
 
   if (algorithmId == 100) {
       // verify entries are unique
