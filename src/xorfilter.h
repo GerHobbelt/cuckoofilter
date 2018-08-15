@@ -168,6 +168,7 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
 
         std::cout << "WARNING: hashIndex " << hashIndex << "\n";
         if (hashIndex >= 0) {
+            size_t outputlimit = 5; // we don't want to spam
             std::cout << (end - start) << " keys; arrayLength " << arrayLength
                 << " blockLength " << blockLength
                 << " reverseOrderPos " << reverseOrderPos << "\n";
@@ -176,7 +177,10 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
             int pos = 0;
             for (size_t i = 0; pos < 1000 && i < arrayLength; i++) {
                 if (t2count[i] > 1) {
-                    std::cout << "  count[" << i << "] = " << t2count[i] << "\n";
+                    if(outputlimit > 0) {
+                       std::cout << "  count[" << i << "] = " << t2count[i] << "\n";
+                       outputlimit --;
+                     }
                     list[pos++] = i;
                 }
             }
@@ -187,7 +191,10 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
                 int h1 = reduce((int) rotl64(hash, 21), blockLength) + blockLength;
                 int h2 = reduce((int) rotl64(hash, 42), blockLength) + 2 * blockLength;
                 if (t2count[h0] > 1 || t2count[h1] > 1 || t2count[h2] > 1) {
-                    std::cout << "  key " << k << " hash=" << hash << " h0=" << h0 << " h1=" << h1 << " h2=" << h2 << "\n";
+                    if(outputlimit > 0) {
+                      std::cout << "  key " << k << " hash=" << hash << " h0=" << h0 << " h1=" << h1 << " h2=" << h2 << "\n";
+                      outputlimit --;
+                    }
                 }
             }
 
