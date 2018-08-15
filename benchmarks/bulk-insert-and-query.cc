@@ -89,12 +89,19 @@ basic_ostream<CharT, Traits>& operator<<(
   for (const auto& fps : stats.finds_per_nano) {
     os << setw(8) << fps.second * NANOS_PER_MILLION;
   }
-  const auto minbits = log2(1 / stats.false_positive_probabilty);
-  os << setw(7) << setprecision(3) << stats.false_positive_probabilty * 100 << '%'
-     << setw(11) << setprecision(2) << stats.bits_per_item << setw(11) << minbits
-     << setw(7) << setprecision(1) << 100 * (stats.bits_per_item / minbits - 1) << '%'
-     << setw(8) << setprecision(1) << (stats.add_count / 1000000.);
-
+  // we get some nonsensical result for very small fpps
+  if(stats.false_positive_probabilty > 0.0000001) {
+    const auto minbits = log2(1 / stats.false_positive_probabilty);
+    os << setw(7) << setprecision(3) << stats.false_positive_probabilty * 100 << '%'
+       << setw(11) << setprecision(2) << stats.bits_per_item << setw(11) << minbits
+       << setw(7) << setprecision(1) << 100 * (stats.bits_per_item / minbits - 1) << '%'
+       << setw(8) << setprecision(1) << (stats.add_count / 1000000.);
+  } else {
+    os << setw(7) << setprecision(3) << stats.false_positive_probabilty * 100 << '%'
+       << setw(11) << setprecision(2) << stats.bits_per_item << setw(11) << 64
+       << setw(7) << setprecision(1) << 0 << '%'
+       << setw(8) << setprecision(1) << (stats.add_count / 1000000.);
+  }
   return os;
 }
 
@@ -220,6 +227,17 @@ struct FilterAPI<BloomFilter<ItemType, bits_per_item>> {
   }
 };
 
+
+size_t intersection_size(vector<uint64_t> a,  vector<uint64_t> b) {
+  // could obviously be accelerated with a Bloom filter
+  // But this is surprisingly fast!
+  vector<uint64_t> result;
+  std::sort(a.begin(), a.end());
+  std::sort(b.begin(), b.end());
+  std::set_intersection(a.begin(), a.end(),b.begin(), b.end(),std::back_inserter(result));
+  return result.size();
+}
+
 template <typename Table>
 Statistics FilterBenchmark(
     size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup, int seed) {
@@ -230,7 +248,7 @@ Statistics FilterBenchmark(
   if (SAMPLE_SIZE > to_lookup.size()) {
     throw out_of_range("to_lookup must contain at least SAMPLE_SIZE values");
   }
-
+  size_t intersectionsize = intersection_size(to_add, to_lookup);
   Table filter = FilterAPI<Table>::ConstructFromAddCount(add_count);
   Statistics result;
 
@@ -242,7 +260,10 @@ Statistics FilterBenchmark(
   }
   // for the XorFilter
   FilterAPI<Table>::AddAll(to_add, 0, add_count, &filter);
-
+  // sanity check:
+  for (size_t added = 0; added < add_count; ++added) {
+    assert(FilterAPI<Table>::Contain(to_add[added], &filter) == 1);
+  }
   result.add_count = add_count;
   result.adds_per_nano = add_count / static_cast<double>(NowNanos() - start_time);
   result.bits_per_item = static_cast<double>(CHAR_BIT * filter.SizeInBytes()) / add_count;
@@ -254,6 +275,12 @@ Statistics FilterBenchmark(
         &to_add[add_count], found_probability) :
         MixInFast(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
         &to_add[add_count], found_probability, seed);
+    size_t true_match = intersection_size(to_lookup_mixed,to_add);
+    double trueproba =  true_match /  static_cast<double>(to_add.size()) ;
+    double probadiff = fabs(trueproba - found_probability);
+    if(probadiff >= 0.01) {
+      cerr << " You claim to have a find proba. of " << found_probability << " but actual is " << trueproba << endl;
+    }
     size_t found_before = found_count;
     const auto start_time = NowNanos();
     for (const auto v : to_lookup_mixed) {
@@ -261,16 +288,30 @@ Statistics FilterBenchmark(
     }
     const auto lookup_time = NowNanos() - start_time;
     size_t found_this_section = found_count - found_before;
+    if (found_this_section < true_match) {
+           cout << "Expected to find at least " << true_match << " found " << found_this_section << endl;
+           cout << "This is a bug!" << endl;
+    }
     if (found_probability == 1.00) {
         if (found_this_section != to_lookup_mixed.size()) {
            cout << "Expected to find " << to_lookup_mixed.size() << " found " << found_this_section << endl;
+           cout << "Actual intersection is " << true_match << endl;
         }
     }
     result.finds_per_nano[100 * found_probability] =
         SAMPLE_SIZE / static_cast<double>(lookup_time);
     if (0.0 == found_probability) {
-      result.false_positive_probabilty =
-          found_count / static_cast<double>(to_lookup_mixed.size());
+      ////////////////////////////
+      // This is obviously technically wrong!!! The assumption is that there is no overlap between the random
+      // queries and the random content. This is likely true if your 64-bit values were generated randomly,
+      // but not true in general.
+      ///////////////////////////
+      // result.false_positive_probabilty =
+      //    found_count / static_cast<double>(to_lookup_mixed.size());
+      if(to_lookup_mixed.size() == intersectionsize) {
+        cerr << "fpp is probably meaningless! " << endl;
+      }
+      result.false_positive_probabilty = found_count / static_cast<double>(to_lookup_mixed.size() - intersectionsize);
     }
   }
   return result;
@@ -353,12 +394,17 @@ int main(int argc, char * argv[]) {
           return 2;
       }
   }
-  const vector<uint64_t> to_add = seed == -1 ?
-    GenerateRandom64(add_count) :
-    GenerateRandom64Fast(add_count, seed);
-  const vector<uint64_t> to_lookup = seed == -1 ?
-    GenerateRandom64(SAMPLE_SIZE) :
-    GenerateRandom64Fast(SAMPLE_SIZE, seed + add_count);
+  vector<uint64_t> to_add = seed == -1 ?
+      GenerateRandom64<::std::random_device>(add_count) :
+      GenerateRandom64Fast(add_count, seed);
+  vector<uint64_t> to_lookup = seed == -1 ?
+      GenerateRandom64<::std::random_device>(SAMPLE_SIZE) :
+      GenerateRandom64Fast(SAMPLE_SIZE, seed + add_count);
+  if(seed == 0) { // 0 is a special seed
+    cout << "Using a sequential ordering."<<endl;
+    for(uint64_t i = 0; i < to_add.size(); i++) to_add[i] = i;
+    for(uint64_t i = 0; i < to_lookup.size(); i++) to_lookup[i] = i + to_add.size();
+  }
 
   if (algorithmId == 100) {
       // verify entries are unique
