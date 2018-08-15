@@ -20,19 +20,33 @@ enum Status {
   NotSupported = 3,
 };
 
+
 inline uint64_t hash64(uint64_t x) {
-    // TODO need to check if this is "fair" (cuckoo filter uses TwoIndependentMultiplyShift)
+#ifdef USETWOIND
+    // these are randomly generated 128-bit integers, the net result is the same hash function
+    // as used by Cuckoo filters
+    static __uint128_t add_ =      0x8e71e54ae82e40f0 + ((__uint128_t) 0x6970711cb0d6bf7a <<  64);
+    static __uint128_t multiply_ = 0xbafaa9ef85ffdfc9 + ((__uint128_t) 0xa3d3f8d5d2f16cb3 <<  64);
+    return (add_ + multiply_ * x ) >> 64;
+    // compiles to something like this:
+    //    imul    rcx, rdi
+    //    mul     rdi
+    //    add     rdx, rcx
+    //    add     rax, rcx
+    //    adc     rdx, rbx
+#else
     x = x * 0xbf58476d1ce4e5b9L;
     x = x ^ (x >> 31);
+    // compiles to something like this:
+    //    imul    rdi, rax
+    //    shr     rax, 31
+    //    xor     rax, rdi
     return x;
-
-    // mix64
-    // x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9L;
-    // x = (x ^ (x >> 27)) * 0x94d049bb133111ebL;
-    // x = x ^ (x >> 31);
-    // return x;
+#endif
 }
 
+
+__attribute__((always_inline)) 
 inline uint32_t reduce(uint32_t hash, uint32_t n) {
     // http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     return (uint32_t) (((uint64_t) hash * n) >> 32);
