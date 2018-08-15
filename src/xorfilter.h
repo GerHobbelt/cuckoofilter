@@ -20,55 +20,18 @@ enum Status {
   NotSupported = 3,
 };
 
-
-inline uint64_t hash64(uint64_t x) {
-#ifdef USETWOIND
-    // these are randomly generated 128-bit integers, the net result is the same hash function
-    // as used by Cuckoo filters
-    static __uint128_t add_ =      0x8e71e54ae82e40f0 + ((__uint128_t) 0x6970711cb0d6bf7a <<  64);
-    static __uint128_t multiply_ = 0xbafaa9ef85ffdfc9 + ((__uint128_t) 0xa3d3f8d5d2f16cb3 <<  64);
-    return (add_ + multiply_ * x ) >> 64;
-    // compiles to something like this:
-    //    imul    rcx, rdi
-    //    mul     rdi
-    //    add     rdx, rcx
-    //    add     rax, rcx
-    //    adc     rdx, rbx
-#else
-    x = x * 0xbf58476d1ce4e5b9L;
-    x = x ^ (x >> 31);
-    // compiles to something like this:
-    //    imul    rdi, rax
-    //    shr     rax, 31
-    //    xor     rax, rdi
-    return x;
-#endif
+inline uint64_t rotl64(uint64_t n, unsigned int c) {
+    // assumes width is a power of 2
+    const unsigned int mask = (CHAR_BIT * sizeof(n) - 1);
+    // assert ( (c<=mask) &&"rotate by type width or more");
+    c &= mask;
+    return (n << c) | ( n >> ((-c) & mask));
 }
 
-
-__attribute__((always_inline)) 
+__attribute__((always_inline))
 inline uint32_t reduce(uint32_t hash, uint32_t n) {
     // http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     return (uint32_t) (((uint64_t) hash * n) >> 32);
-}
-
-size_t getHash(uint64_t key, int hashIndex, int index, int blockLength) {
-    uint64_t hash = hash64(key + hashIndex);
-    uint32_t r;
-    switch(index) {
-    case 0:
-        r = (uint32_t) (hash);
-        break;
-    case 1:
-        r = (uint32_t) (hash >> 16);
-        break;
-    default:
-        r = (uint32_t) (hash >> 32);
-        break;
-    }
-    r = reduce(r, blockLength);
-    r = r + index * blockLength;
-    return (size_t) r;
 }
 
 size_t getHashFromHash(uint64_t hash, int index, int blockLength) {
@@ -78,10 +41,10 @@ size_t getHashFromHash(uint64_t hash, int index, int blockLength) {
         r = (uint32_t) (hash);
         break;
     case 1:
-        r = (uint32_t) (hash >> 16);
+        r = (uint32_t) rotl64(hash, 21);
         break;
     default:
-        r = (uint32_t) (hash >> 32);
+        r = (uint32_t) rotl64(hash, 42);
         break;
     }
     r = reduce(r, blockLength);
@@ -96,17 +59,17 @@ class XorFilter {
   size_t size;
   size_t arrayLength;
   size_t blockLength;
-  uint32_t hashIndex;
   FingerprintType *fingerprints;
 
-  HashFamily hasher;
+  HashFamily* hasher;
 
   inline FingerprintType fingerprint(const uint64_t hash) const {
     return (FingerprintType) hash;
   }
 
  public:
-  explicit XorFilter(const size_t size) : hasher() {
+  explicit XorFilter(const size_t size) {
+    hasher = new HashFamily();
     this->size = size;
     this->arrayLength = 3 + 1.23 * size;
     this->blockLength = arrayLength / 3;
@@ -114,7 +77,10 @@ class XorFilter {
     std::fill_n(fingerprints, arrayLength, 0);
   }
 
-  ~XorFilter() { delete[] fingerprints; }
+  ~XorFilter() {
+    delete[] fingerprints;
+    delete hasher;
+  }
 
   Status AddAll(const vector<ItemType> data, const size_t start, const size_t end);
 
@@ -148,10 +114,10 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
         memset(t2, 0, sizeof(uint64_t[m]));
         for(size_t i = start; i < end; i++) {
             uint64_t k = keys[i];
-            uint64_t hash = hash64(k + hashIndex);
+            uint64_t hash = (*hasher)(k);
             int h0 = reduce((int) (hash), blockLength);
-            int h1 = reduce((int) (hash >> 16), blockLength) + blockLength;
-            int h2 = reduce((int) (hash >> 32), blockLength) + 2 * blockLength;
+            int h1 = reduce((int) rotl64(hash, 21), blockLength) + blockLength;
+            int h2 = reduce((int) rotl64(hash, 42), blockLength) + 2 * blockLength;
             t2count[h0]++;
             t2[h0] ^= hash;
             t2count[h1]++;
@@ -200,45 +166,45 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
             break;
         }
 
-std::cout << "WARNING: hashIndex " << hashIndex << "\n";
-if (hashIndex >= 0) {
-  std::cout << (end - start) << " keys; arrayLength " << arrayLength
-      << " blockLength " << blockLength
-      << " reverseOrderPos " << reverseOrderPos << "\n";
+        std::cout << "WARNING: hashIndex " << hashIndex << "\n";
+        if (hashIndex >= 0) {
+            std::cout << (end - start) << " keys; arrayLength " << arrayLength
+                << " blockLength " << blockLength
+                << " reverseOrderPos " << reverseOrderPos << "\n";
 
-    size_t list[1000];
-    int pos = 0;
-    for (size_t i = 0; i < arrayLength; i++) {
-        if (t2count[i] > 1) {
-            std::cout << "  count[" << i << "] = " << t2count[i] << "\n";
-            list[pos++] = i;
+            size_t list[1000];
+            int pos = 0;
+            for (size_t i = 0; pos < 1000 && i < arrayLength; i++) {
+                if (t2count[i] > 1) {
+                    std::cout << "  count[" << i << "] = " << t2count[i] << "\n";
+                    list[pos++] = i;
+                }
+            }
+           for(size_t i = start; i < end; i++) {
+                uint64_t k = keys[i];
+                uint64_t hash = (*hasher)(k);
+                int h0 = reduce((int) (hash), blockLength);
+                int h1 = reduce((int) rotl64(hash, 21), blockLength) + blockLength;
+                int h2 = reduce((int) rotl64(hash, 42), blockLength) + 2 * blockLength;
+                if (t2count[h0] > 1 || t2count[h1] > 1 || t2count[h2] > 1) {
+                    std::cout << "  key " << k << " hash=" << hash << " h0=" << h0 << " h1=" << h1 << " h2=" << h2 << "\n";
+                }
+            }
+
+            // for(size_t i = start; i < end; i++) {
+            //     uint64_t k = keys[i];
+            //     std::cout << k << "\n";
+            // }
+            // std::cout << "end\n";
         }
-    }
-    for(size_t i = start; i < end; i++) {
-        uint64_t k = keys[i];
-        uint64_t hash = hash64(k + hashIndex);
-        int h0 = reduce((int) (hash), blockLength);
-        int h1 = reduce((int) (hash >> 16), blockLength) + blockLength;
-        int h2 = reduce((int) (hash >> 32), blockLength) + 2 * blockLength;
-        if (t2count[h0] > 1 || t2count[h1] > 1 || t2count[h2] > 1) {
-            std::cout << "  key " << k << " hash=" << hash << " h0=" << h0 << " h1=" << h1 << " h2=" << h2 << "\n";
-        }
-    }
-
-
-  // for(size_t i = start; i < end; i++) {
-  //     uint64_t k = keys[i];
-  //     std::cout << k << "\n";
-  // }
-  // std::cout << "end\n";
-}
-
 
         hashIndex++;
-    }
-std::cout << "ok\n";
 
-    this->hashIndex = hashIndex;
+        // use a new random numbers
+        delete hasher;
+        hasher = new HashFamily();
+
+    }
 
     for (int i = reverseOrderPos - 1; i >= 0; i--) {
         // the hash of the key we insert next
@@ -274,11 +240,11 @@ template <typename ItemType, typename FingerprintType,
           typename HashFamily>
 Status XorFilter<ItemType, FingerprintType, HashFamily>::Contain(
     const ItemType &key) const {
-    uint64_t hash = hash64(key + hashIndex);
+    uint64_t hash = (*hasher)(key);
     FingerprintType f = fingerprint(hash);
     uint32_t r0 = (uint32_t) hash;
-    uint32_t r1 = (uint32_t) (hash >> 16);
-    uint32_t r2 = (uint32_t) (hash >> 32);
+    uint32_t r1 = (uint32_t) rotl64(hash, 21);
+    uint32_t r2 = (uint32_t) rotl64(hash, 42);
     uint32_t h0 = reduce(r0, blockLength);
     uint32_t h1 = reduce(r1, blockLength) + blockLength;
     uint32_t h2 = reduce(r2, blockLength) + 2 * blockLength;
