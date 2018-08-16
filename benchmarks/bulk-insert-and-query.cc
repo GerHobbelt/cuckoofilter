@@ -287,6 +287,12 @@ size_t match_size(vector<uint64_t> a,  vector<uint64_t> b, size_t * distincta, s
   return match_size_iter(a.begin(), a.end(),b.begin(), b.end());
 }
 
+bool has_duplicates(vector<uint64_t> a) {
+  std::sort(a.begin(), a.end());
+  return count_distinct(a.begin(), a.end()) < a.size();
+}
+
+
 template <typename Table>
 Statistics FilterBenchmark(
     size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup, int seed) {
@@ -305,14 +311,19 @@ Statistics FilterBenchmark(
   size_t distinct_lookup;
   size_t distinct_add;
   size_t intersectionsize = match_size(to_lookup, to_add, &distinct_lookup, & distinct_add);
+  bool hasduplicates = false;
   if(intersectionsize > 0) {
     cout << "WARNING: Out of the lookup table, "<< intersectionsize<< " ("<<intersectionsize * 100.0 / to_lookup.size() << "%) of values are present in the filter." << endl;
+    hasduplicates = true;
   }
+
   if(distinct_lookup != to_lookup.size()) {
     cout << "WARNING: Lookup contains "<< (to_lookup.size() - distinct_lookup)<<" duplicates." << endl;
+    hasduplicates = true;
   }
   if(distinct_add != to_add.size()) {
     cout << "WARNING: Filter contains "<< (to_add.size() - distinct_add) << " duplicates." << endl;
+    hasduplicates = true;
   }
   Table filter = FilterAPI<Table>::ConstructFromAddCount(add_count);
   Statistics result;
@@ -332,14 +343,14 @@ Statistics FilterBenchmark(
   result.add_count = add_count;
   result.adds_per_nano = add_count / static_cast<double>(NowNanos() - start_time);
   result.bits_per_item = static_cast<double>(CHAR_BIT * filter.SizeInBytes()) / add_count;
-
+  ::std::random_device random;
   size_t found_count = 0;
   for (const double found_probability : {0.0, 0.25, 0.50, 0.75, 1.00}) {
-    const auto to_lookup_mixed = seed == -1 ?
-        MixIn(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
-        &to_add[add_count], found_probability) :
-        MixInFast(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
-        &to_add[add_count], found_probability, seed);
+    uint64_t mixingseed = seed == -1 ? random() : seed;
+    const auto to_lookup_mixed = DuplicateFreeMixIn(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
+    &to_add[add_count], found_probability, mixingseed);
+
+    if(! hasduplicates ) assert(! has_duplicates(to_lookup_mixed));
     assert(to_lookup_mixed.size() == actual_sample_size);
     size_t true_match = match_size(to_lookup_mixed,to_add, NULL, NULL);
     double trueproba =  true_match /  static_cast<double>(actual_sample_size) ;
