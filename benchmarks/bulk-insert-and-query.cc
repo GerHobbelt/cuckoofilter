@@ -232,7 +232,7 @@ struct FilterAPI<BloomFilter<ItemType, bits_per_item>> {
 // this tries to find out how many of first1,last1 can be
 // found in first2, last2, this includes duplicates
 template<class InputIt1, class InputIt2>
-size_t match_size(InputIt1 first1, InputIt1 last1,
+size_t match_size_iter(InputIt1 first1, InputIt1 last1,
                           InputIt2 first2, InputIt2 last2) {
     size_t answer = 0;
     while (first1 != last1 && first2 != last2) {
@@ -248,13 +248,29 @@ size_t match_size(InputIt1 first1, InputIt1 last1,
     return answer;
 }
 
-size_t match_size(vector<uint64_t> a,  vector<uint64_t> b) {
+template<class InputIt>
+size_t count_distinct(InputIt first, InputIt last) {
+    if(last  == first) return 0;
+    size_t answer = 1;
+    auto val = *first;
+    first++;
+
+    while (first != last) {
+      if(val != *first) ++answer;
+      first++;
+    }
+    return answer;
+}
+
+size_t match_size(vector<uint64_t> a,  vector<uint64_t> b, size_t * distincta, size_t * distinctb) {
   // could obviously be accelerated with a Bloom filter
   // But this is surprisingly fast!
   vector<uint64_t> result;
   std::sort(a.begin(), a.end());
   std::sort(b.begin(), b.end());
-  return match_size(a.begin(), a.end(),b.begin(), b.end());
+  if(distincta != NULL) *distincta  = count_distinct(a.begin(), a.end());
+  if(distinctb != NULL) *distinctb  = count_distinct(b.begin(), b.end());
+  return match_size_iter(a.begin(), a.end(),b.begin(), b.end());
 }
 
 template <typename Table>
@@ -272,7 +288,18 @@ Statistics FilterBenchmark(
   if (actual_sample_size > to_lookup.size()) {
     throw out_of_range("to_lookup must contain at least SAMPLE_SIZE values");
   }
-  size_t intersectionsize = match_size(to_lookup, to_add);
+  size_t distinct_lookup;
+  size_t distinct_add;
+  size_t intersectionsize = match_size(to_lookup, to_add, &distinct_lookup, & distinct_add);
+  if(intersectionsize > 0) {
+    cout << "WARNING: Out of the lookup table, "<< intersectionsize<< " ("<<intersectionsize * 100.0 / to_lookup.size() << "%) of values are present in the filter." << endl;
+  }
+  if(distinct_lookup != to_lookup.size()) {
+    cout << "WARNING: Lookup contains "<< (to_lookup.size() - distinct_lookup)<<" duplicates." << endl;
+  }
+  if(distinct_add != to_add.size()) {
+    cout << "WARNING: Filter contains "<< (to_add.size() - distinct_add) << " duplicates." << endl;
+  }
   Table filter = FilterAPI<Table>::ConstructFromAddCount(add_count);
   Statistics result;
 
@@ -300,7 +327,7 @@ Statistics FilterBenchmark(
         MixInFast(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
         &to_add[add_count], found_probability, seed);
     assert(to_lookup_mixed.size() == actual_sample_size);
-    size_t true_match = match_size(to_lookup_mixed,to_add);
+    size_t true_match = match_size(to_lookup_mixed,to_add, NULL, NULL);
     double trueproba =  true_match /  static_cast<double>(actual_sample_size) ;
     double bestpossiblematch = fabs(round(found_probability * actual_sample_size) / static_cast<double>(actual_sample_size) - found_probability);
     double tolerance = bestpossiblematch > 0.01 ? bestpossiblematch : 0.01;
