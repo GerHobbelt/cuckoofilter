@@ -178,7 +178,7 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
             for (size_t i = 0; pos < 1000 && i < arrayLength; i++) {
                 if (t2count[i] > 1) {
                     if(outputlimit > 0) {
-                       std::cout << "  count[" << i << "] = " << t2count[i] << "\n";
+                       std::cout << "  count[" << i << "] = " << (int) t2count[i] << "\n";
                        outputlimit --;
                      }
                     list[pos++] = i;
