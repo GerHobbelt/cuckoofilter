@@ -171,6 +171,20 @@ struct FilterAPI<XorFilter<ItemType, FingerprintType>> {
   }
 };
 
+template <typename ItemType, typename FingerprintType, typename HashFamily>
+struct FilterAPI<XorFilter<ItemType, FingerprintType, HashFamily>> {
+  using Table = XorFilter<ItemType, FingerprintType, HashFamily>;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table* table) {
+  }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+    table->AddAll(keys, start, end);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return (0 == table->Contain(key));
+  }
+};
+
 template <typename ItemType, typename FingerprintType>
 struct FilterAPI<XorFilterPlus<ItemType, FingerprintType>> {
   using Table = XorFilterPlus<ItemType, FingerprintType>;
@@ -587,4 +601,10 @@ int main(int argc, char * argv[]) {
       cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
   }
 
+  if (algorithmId == 15 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter<uint64_t, uint8_t,SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor8SplitMix" << cf << endl;
+  }
 }
