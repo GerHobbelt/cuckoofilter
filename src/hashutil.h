@@ -66,6 +66,32 @@ class TwoIndependentMultiplyShift {
   }
 };
 
+
+class SimpleMixSplit {
+  uint64_t seed;
+
+ public:
+  SimpleMixSplit() {
+    ::std::random_device random;
+    seed = random();
+    seed <<= 32;
+    seed |= random();
+  }
+
+  static uint64_t murmur64(uint64_t h) {
+    h ^= h >> 33;
+    h *= UINT64_C(0xff51afd7ed558ccd);
+    h ^= h >> 33;
+    h *= UINT64_C(0xc4ceb9fe1a85ec53);
+    h ^= h >> 33;
+    return h;
+  }
+
+  uint64_t operator()(uint64_t key) const {
+    return murmur64(key + seed);
+  }
+};
+
 // See Patrascu and Thorup's "The Power of Simple Tabulation Hashing"
 class SimpleTabulation {
   uint64_t tables_[sizeof(uint64_t)][1 << CHAR_BIT];
