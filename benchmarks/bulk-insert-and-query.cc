@@ -339,7 +339,7 @@ Statistics FilterBenchmark(
       if(to_lookup_mixed.size() == intersectionsize) {
         cerr << "WARNING: fpp is probably meaningless! " << endl;
       }
-      result.false_positive_probabilty = found_count / static_cast<double>(to_lookup_mixed.size() - intersectionsize);
+      result.false_positive_probabilty = (found_count  - intersectionsize) / static_cast<double>(to_lookup_mixed.size() - intersectionsize);
     }
   }
   return result;
