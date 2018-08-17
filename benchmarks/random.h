@@ -40,6 +40,80 @@ template <class RNG = ::std::random_device>
   return result;
 }
 
+
+
+static inline uint64_t biased_random_bounded(uint64_t range, __uint128_t * seed) {
+  __uint128_t random64bit, multiresult;
+  *seed *= UINT64_C(0xda942042e4dd58b5);
+  random64bit = *seed >> 64;
+  multiresult = random64bit * range;
+  return multiresult >> 64; // [0, range)
+}
+
+static inline uint64_t random_bounded(uint64_t range, __uint128_t * seed) {
+  __uint128_t random64bit, multiresult;
+  uint64_t leftover;
+  uint64_t threshold;
+  *seed *= UINT64_C(0xda942042e4dd58b5);
+  random64bit = *seed >> 64;
+  multiresult = random64bit * range;
+  leftover = (uint64_t)multiresult;
+  if (leftover < range) {
+    threshold = -range % range;
+    while (leftover < threshold) {
+      *seed *= UINT64_C(0xda942042e4dd58b5);
+      random64bit = *seed >> 64;
+      multiresult = random64bit * range;
+      leftover = (uint64_t)multiresult;
+    }
+  }
+  return multiresult >> 64; // [0, range)
+}
+
+template <typename T>
+// pick capacity elements form x_begin, x_end, write them to storage
+void reservoirsampling(T *storage, uint32_t capacity, const T* x_begin, const T* x_end, __uint128_t * seed) {
+  if(capacity == 0) return;
+  size_t size = x_end - x_begin;
+  if(size < capacity) {
+    throw ::std::logic_error("I cannot sample the requested number. This is not going to end well.");
+  }
+  size_t i;
+  for (i = 0; i < capacity; i++) {
+    storage[i] = x_begin[i];
+  }
+  while(i < size) {
+    size_t nextpos =
+        biased_random_bounded(i, seed);
+    if(nextpos < capacity) {
+      storage[nextpos] = x_begin[i];
+    }
+    i++;
+  }
+}
+
+// Using two pointer ranges for sequences x and y, create a vector clone of x but for
+// y_probability y's mixed in.
+template <typename T>
+::std::vector<T> DuplicateFreeMixIn(const T* x_begin, const T* x_end, const T* y_begin, const T* y_end,
+    double y_probability, uint64_t start) {
+  const size_t x_size = x_end - x_begin; //, y_size = y_end - y_begin;
+  ::std::vector<T> result;
+  result.resize(x_size);
+  __uint128_t seed = start;
+  size_t howmanyy = round(x_size * y_probability);
+  size_t howmanyx = x_size - howmanyy;
+  reservoirsampling(result.data(), howmanyx,  x_begin, x_end, &seed);
+  reservoirsampling(result.data() + howmanyx, howmanyy,  y_begin, y_end, &seed);
+  return result;
+}
+
+
+
+/**********************************************
+** WARNING: MixIn and MixInFast can generate duplicates!!!! Use SimpleMixIn and SlowishSimpleMixIn
+** instead.
+*******************************************/
 // Using two pointer ranges for sequences x and y, create a vector clone of x but for
 // y_probability y's mixed in.
 template <typename T>
