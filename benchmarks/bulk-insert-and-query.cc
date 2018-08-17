@@ -22,6 +22,7 @@
 #include "cuckoofilter.h"
 #include "cuckoofilter_stable.h"
 #include "xorfilter.h"
+#include "xorfilter_2.h"
 #include "xorfilter_plus.h"
 #include "bloom.h"
 #include "gcs.h"
@@ -34,6 +35,7 @@ using namespace std;
 
 using namespace cuckoofilter;
 using namespace xorfilter;
+using namespace xorfilter2;
 using namespace xorfilter_plus;
 using namespace bloomfilter;
 using namespace gcsfilter;
@@ -185,9 +187,23 @@ struct FilterAPI<XorFilter<ItemType, FingerprintType, HashFamily>> {
   }
 };
 
-template <typename ItemType, typename FingerprintType>
-struct FilterAPI<XorFilterPlus<ItemType, FingerprintType>> {
-  using Table = XorFilterPlus<ItemType, FingerprintType>;
+template <typename ItemType, typename FingerprintType, typename FingerprintStorageType, typename HashFamily>
+struct FilterAPI<XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>> {
+  using Table = XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table* table) {
+  }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+    table->AddAll(keys, start, end);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return (0 == table->Contain(key));
+  }
+};
+
+template <typename ItemType, typename FingerprintType, typename HashFamily>
+struct FilterAPI<XorFilterPlus<ItemType, FingerprintType, HashFamily>> {
+  using Table = XorFilterPlus<ItemType, FingerprintType, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
   }
@@ -487,23 +503,6 @@ int main(int argc, char * argv[]) {
   }
   assert(to_lookup.size() == SAMPLE_SIZE);
 
-  if (algorithmId == 100) {
-      // verify entries are unique
-      uint64_t* data = new uint64_t[add_count];
-      for(int i=0; i<add_count; i++) {
-          data[i] = to_add[i];
-      }
-      cout << "Checking for duplicates..." << endl;
-      qsort(data, add_count, sizeof(uint64_t), compare_uint64);
-      for (int i=1; i<add_count; i++) {
-          if (data[i - 1] == data[i]) {
-              std::cout << "Info: duplicate key at " << i << "\n";
-          }
-      }
-      cout << "OK!" << endl;
-      delete[] data;
-  }
-
   constexpr int NAME_WIDTH = 16;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
@@ -524,16 +523,16 @@ int main(int argc, char * argv[]) {
 
   if (algorithmId == 2 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilterPlus<uint64_t, uint8_t>>(
+          XorFilterPlus<uint64_t, uint8_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor+8" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor+8SplitMix" << cf << endl;
   }
 
   if (algorithmId == 3 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilterPlus<uint64_t, uint16_t>>(
+          XorFilterPlus<uint64_t, uint16_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor+16" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor+16SplitMix" << cf << endl;
   }
 
   if (algorithmId == 4 || algorithmId < 0) {
@@ -614,8 +613,37 @@ int main(int argc, char * argv[]) {
 
   if (algorithmId == 15 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter<uint64_t, uint8_t,SimpleMixSplit>>(
+          XorFilter<uint64_t, uint8_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor8SplitMix" << cf << endl;
   }
+
+  if (algorithmId == 16 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor8SplitMix/2" << cf << endl;
+  }
+
+  if (algorithmId == 17 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 10>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor10SplitMix/2" << cf << endl;
+  }
+
+  if (algorithmId == 18 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 12>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor12SplitMix/2" << cf << endl;
+  }
+
+  if (algorithmId == 19 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 14>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor14SplitMix/2" << cf << endl;
+  }
+
 }
