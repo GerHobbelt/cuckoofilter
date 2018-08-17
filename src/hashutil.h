@@ -61,7 +61,7 @@ class TwoIndependentMultiplyShift {
     }
   }
 
-  uint64_t operator()(uint64_t key) const {
+  inline uint64_t operator()(uint64_t key) const {
     return (add_ + multiply_ * static_cast<decltype(multiply_)>(key)) >> 64;
   }
 };
@@ -78,7 +78,7 @@ class SimpleMixSplit {
     seed |= random();
   }
 
-  static uint64_t murmur64(uint64_t h) {
+  inline static uint64_t murmur64(uint64_t h) {
     h ^= h >> 33;
     h *= UINT64_C(0xff51afd7ed558ccd);
     h ^= h >> 33;
@@ -87,7 +87,7 @@ class SimpleMixSplit {
     return h;
   }
 
-  uint64_t operator()(uint64_t key) const {
+  inline uint64_t operator()(uint64_t key) const {
     return murmur64(key + seed);
   }
 };
@@ -106,7 +106,7 @@ class SimpleTabulation {
     }
   }
 
-  uint64_t operator()(uint64_t key) const {
+  inline uint64_t operator()(uint64_t key) const {
     uint64_t result = 0;
     for (unsigned i = 0; i < sizeof(key); ++i) {
       result ^= tables_[i][reinterpret_cast<uint8_t *>(&key)[i]];
