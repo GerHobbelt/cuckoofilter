@@ -29,6 +29,47 @@ public:
     }
 };
 
+class UInt12Array {
+    size_t byteCount;
+    uint8_t* data;
+public:
+    UInt12Array(size_t size) {
+        byteCount = size * 3 / 2 + 32;
+        data = new uint8_t[byteCount]();
+    }
+    ~UInt12Array() {
+        delete[] data;
+    }
+    // the returned value may contain other high-order bits;
+    // call mask() to clear them
+    inline uint32_t get(size_t index) {
+        size_t firstBytePos = (index >> 1) + index;
+        uint32_t word;
+        memcpy(&word, data + firstBytePos, sizeof(uint32_t));
+        return word >> ((index & 1) << 2);
+
+    }
+    inline void set(size_t index, uint32_t value) {
+        size_t wordpos = (index >> 1) * 3;
+        unsigned int wp = (index & 1) * 12;
+        size_t offval = (value & 0xfff) << wp;
+        size_t offmask = 0xFFF << wp;
+        uint32_t word;
+        memcpy(&word, data + wordpos, sizeof(uint32_t));
+        // no need for word & ~(offmask) if it's always 0 at the beginning
+        // word = (word) | offval;
+        word = (word & ~(offmask)) | offval;
+        memcpy(data + wordpos, &word, sizeof(uint32_t));
+
+    }
+    inline uint32_t mask(uint32_t fingerprint) {
+        return fingerprint & 0xfff;
+    }
+    size_t getByteCount() {
+        return byteCount;
+    }
+};
+
 template <typename ItemType, size_t bitsPerEntry, uint32_t bitMask = (1 << bitsPerEntry) - 1>
 class NBitArray {
     size_t byteCount;

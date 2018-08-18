@@ -228,7 +228,7 @@ Status XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>
             } else {
                 // this is different from BDZ: using xor to calculate the
                 // fingerprint
-                xor2 ^= fingerprints->get(h);
+                xor2 ^= fingerprints->mask(fingerprints->get(h));
             }
         }
         fingerprints->set(change, xor2);
@@ -247,7 +247,7 @@ template <typename ItemType, typename FingerprintType,
 Status XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>::Contain(
     const ItemType &key) const {
     uint64_t hash = (*hasher)(key);
-    FingerprintType f = fingerprint(hash);
+    FingerprintType f = hash;
     uint32_t r0 = (uint32_t) hash;
     uint32_t r1 = (uint32_t) rotl64(hash, 21);
     uint32_t r2 = (uint32_t) rotl64(hash, 42);
@@ -255,7 +255,7 @@ Status XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>
     uint32_t h1 = reduce(r1, blockLength) + blockLength;
     uint32_t h2 = reduce(r2, blockLength) + 2 * blockLength;
     f ^= fingerprints->get(h0) ^ fingerprints->get(h1) ^ fingerprints->get(h2);
-    return f == 0 ? Ok : NotFound;
+    return fingerprint(f) == 0 ? Ok : NotFound;
 }
 
 template <typename ItemType, typename FingerprintType,

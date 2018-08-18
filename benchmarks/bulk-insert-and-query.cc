@@ -646,4 +646,11 @@ int main(int argc, char * argv[]) {
       cout << setw(NAME_WIDTH) << "Xor14SplitMix/2" << cf << endl;
   }
 
+  if (algorithmId == 20 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint32_t, UInt12Array, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor12SplitMix/3" << cf << endl;
+  }
+
 }
