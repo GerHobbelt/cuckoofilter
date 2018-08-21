@@ -23,6 +23,7 @@
 #include "cuckoofilter_stable.h"
 #include "xorfilter.h"
 #include "xorfilter_2.h"
+#include "xorfilter_2n.h"
 #include "xorfilter_plus.h"
 #include "bloom.h"
 #include "gcs.h"
@@ -36,6 +37,7 @@ using namespace std;
 using namespace cuckoofilter;
 using namespace xorfilter;
 using namespace xorfilter2;
+using namespace xorfilter2n;
 using namespace xorfilter_plus;
 using namespace bloomfilter;
 using namespace gcsfilter;
@@ -190,6 +192,20 @@ struct FilterAPI<XorFilter<ItemType, FingerprintType, HashFamily>> {
 template <typename ItemType, typename FingerprintType, typename FingerprintStorageType, typename HashFamily>
 struct FilterAPI<XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>> {
   using Table = XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table* table) {
+  }
+  static void AddAll(const vector<ItemType> keys, const size_t start, const size_t end, Table* table) {
+    table->AddAll(keys, start, end);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return (0 == table->Contain(key));
+  }
+};
+
+template <typename ItemType, typename FingerprintType, typename FingerprintStorageType, typename HashFamily>
+struct FilterAPI<XorFilter2n<ItemType, FingerprintType, FingerprintStorageType, HashFamily>> {
+  using Table = XorFilter2n<ItemType, FingerprintType, FingerprintStorageType, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
   }
@@ -651,6 +667,13 @@ int main(int argc, char * argv[]) {
           XorFilter2<uint64_t, uint32_t, UInt12Array, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor12SplitMix/3" << cf << endl;
+  }
+
+  if (algorithmId == 21 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2n<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor8SplitMix2^n" << cf << endl;
   }
 
 }
