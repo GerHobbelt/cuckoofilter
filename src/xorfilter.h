@@ -172,8 +172,6 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
             std::cout << (end - start) << " keys; arrayLength " << arrayLength
                 << " blockLength " << blockLength
                 << " reverseOrderPos " << reverseOrderPos << "\n";
-
-            size_t list[1000];
             int pos = 0;
             for (size_t i = 0; pos < 1000 && i < arrayLength; i++) {
                 if (t2count[i] > 1) {
@@ -181,7 +179,6 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
                        std::cout << "  count[" << i << "] = " << (int) t2count[i] << "\n";
                        outputlimit --;
                      }
-                    list[pos++] = i;
                 }
             }
            for(size_t i = start; i < end; i++) {
