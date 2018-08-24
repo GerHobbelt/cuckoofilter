@@ -112,9 +112,9 @@ basic_ostream<CharT, Traits>& operator<<(
 template<typename Table>
 struct FilterAPI {};
 
-template <typename ItemType, size_t bits_per_item, template <size_t> class TableType>
-struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType>> {
-  using Table = CuckooFilter<ItemType, bits_per_item, TableType>;
+template <typename ItemType, size_t bits_per_item, template <size_t> class TableType, typename HashFamily>
+struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType, HashFamily>> {
+  using Table = CuckooFilter<ItemType, bits_per_item, TableType, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table * table) {
     if (0 != table->Add(key)) {
@@ -128,9 +128,9 @@ struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType>> {
   }
 };
 
-template <typename ItemType, size_t bits_per_item, template <size_t> class TableType>
-struct FilterAPI<CuckooFilterStable<ItemType, bits_per_item, TableType>> {
-  using Table = CuckooFilterStable<ItemType, bits_per_item, TableType>;
+template <typename ItemType, size_t bits_per_item, template <size_t> class TableType, typename HashFamily>
+struct FilterAPI<CuckooFilterStable<ItemType, bits_per_item, TableType, HashFamily>> {
+  using Table = CuckooFilterStable<ItemType, bits_per_item, TableType, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table * table) {
     if (0 != table->Add(key)) {
@@ -144,9 +144,9 @@ struct FilterAPI<CuckooFilterStable<ItemType, bits_per_item, TableType>> {
   }
 };
 
-template <>
-struct FilterAPI<SimdBlockFilter<>> {
-  using Table = SimdBlockFilter<>;
+template <typename HashFamily>
+struct FilterAPI<SimdBlockFilter<HashFamily>> {
+  using Table = SimdBlockFilter<HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) {
     Table ans(ceil(log2(add_count * 8.0 / CHAR_BIT)));
     return ans;
@@ -231,9 +231,9 @@ struct FilterAPI<XorFilterPlus<ItemType, FingerprintType, HashFamily>> {
   }
 };
 
-template <typename ItemType, size_t bits_per_item>
-struct FilterAPI<GcsFilter<ItemType, bits_per_item>> {
-  using Table = GcsFilter<ItemType, bits_per_item>;
+template <typename ItemType, size_t bits_per_item, typename HashFamily>
+struct FilterAPI<GcsFilter<ItemType, bits_per_item, HashFamily>> {
+  using Table = GcsFilter<ItemType, bits_per_item, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
   }
@@ -245,9 +245,9 @@ struct FilterAPI<GcsFilter<ItemType, bits_per_item>> {
   }
 };
 
-template <typename ItemType, size_t bits_per_item>
-struct FilterAPI<GQFilter<ItemType, bits_per_item>> {
-  using Table = GQFilter<ItemType, bits_per_item>;
+template <typename ItemType, size_t bits_per_item, typename HashFamily>
+struct FilterAPI<GQFilter<ItemType, bits_per_item, HashFamily>> {
+  using Table = GQFilter<ItemType, bits_per_item, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
     table->Add(key);
@@ -259,9 +259,9 @@ struct FilterAPI<GQFilter<ItemType, bits_per_item>> {
   }
 };
 
-template <typename ItemType, size_t bits_per_item>
-struct FilterAPI<BloomFilter<ItemType, bits_per_item>> {
-  using Table = BloomFilter<ItemType, bits_per_item>;
+template <typename ItemType, size_t bits_per_item, typename HashFamily>
+struct FilterAPI<BloomFilter<ItemType, bits_per_item, HashFamily>> {
+  using Table = BloomFilter<ItemType, bits_per_item, HashFamily>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table* table) {
     table->Add(key);
@@ -442,37 +442,27 @@ void fixEndian(uint64_t* longArray, uint64_t byteCount) {
     }
 }
 
-int main(int argc, char * argv[]) {
-
 /*
-{
-    FILE* fp = fopen("/Users/mueller/Downloads/data1.bin", "r");
-    uint64_t* data = new uint64_t[190000000];
-    size_t len = fread(data, 8L * 190000000, 1, fp);
-    fixEndian(data, 190000000L * 8);
-    cout << "d0 " << data[0] << "\n";
-    cout << "d1000 " << data[1000] << "\n";
-    cout << "d-1 " << data[190000000 - 1] << "\n";
-
-    vector<uint64_t> to_add(190000000);
-    to_add.assign(data, data + 190000000);
-
-    cout << "d0 " << to_add[0] << "\n";
-    cout << "d1000 " << to_add[1000] << "\n";
-    cout << "d-1 " << to_add[190000000 - 1] << "\n";
-
-    XorFilter<uint64_t, uint8_t> f = XorFilter<uint64_t, uint8_t>(190000000);
-    cout << "addAll\n";
-    f.AddAll(to_add, 0, 190000000);
-    cout << "done\n";
-
-    delete [] data;
-    fclose(fp);
-
-
-    if (true) return 1;
+static uint64_t murmur64(uint64_t h) {
+    h ^= h >> 33;
+    h *= UINT64_C(0xff51afd7ed558ccd);
+    h ^= h >> 33;
+    h *= UINT64_C(0xc4ceb9fe1a85ec53);
+    h ^= h >> 33;
+    return h;
 }
 */
+
+static uint64_t unmurmur64(uint64_t h) {
+    h ^= h >> 33;
+    h *= UINT64_C(0x9cb4b2f8129337db);
+    h ^= h >> 33;
+    h *= UINT64_C(0x4f74430c22a54005);
+    h ^= h >> 33;
+    return h;
+}
+
+int main(int argc, char * argv[]) {
 
   if (argc < 2) {
     cerr << "Usage: " << argv[0] << " <numberOfEntries> [<algorithmId> [<seed>]]" << endl;
@@ -512,27 +502,38 @@ int main(int argc, char * argv[]) {
   vector<uint64_t> to_lookup = seed == -1 ?
       GenerateRandom64<::std::random_device>(SAMPLE_SIZE) :
       GenerateRandom64Fast(SAMPLE_SIZE, seed + add_count);
-  if(seed == 0) { // 0 is a special seed
+  if(seed == 0) {
+    // 0 is a special seed
     cout << "Using a sequential ordering."<<endl;
     for(uint64_t i = 0; i < to_add.size(); i++) to_add[i] = i;
     for(uint64_t i = 0; i < to_lookup.size(); i++) to_lookup[i] = i + to_add.size();
+  } else if (seed == 1) {
+    // 0 is a special seed
+    cout << "Using a sequential un-murmur ordering."<<endl;
+    int shift = 0;
+    for(uint64_t i = 0; i < to_add.size(); i++) {
+        to_add[i] = unmurmur64(i << shift);
+    }
+    for(uint64_t i = 0; i < to_lookup.size(); i++) {
+        to_lookup[i] = unmurmur64((i + to_add.size()) << shift);
+    }
   }
   assert(to_lookup.size() == SAMPLE_SIZE);
 
-  constexpr int NAME_WIDTH = 16;
+  constexpr int NAME_WIDTH = 32;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
   if (algorithmId == 0 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter<uint64_t, uint8_t>>(
+          XorFilter<uint64_t, uint8_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor8" << cf << endl;
   }
 
   if (algorithmId == 1 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter<uint64_t, uint16_t>>(
+          XorFilter<uint64_t, uint16_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Xor16" << cf << endl;
   }
@@ -541,139 +542,141 @@ int main(int argc, char * argv[]) {
       auto cf = FilterBenchmark<
           XorFilterPlus<uint64_t, uint8_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor+8SplitMix" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor+8" << cf << endl;
   }
 
   if (algorithmId == 3 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           XorFilterPlus<uint64_t, uint16_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor+16SplitMix" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor+16" << cf << endl;
   }
 
   if (algorithmId == 4 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          BloomFilter<uint64_t, 10 /* bits per item */>>(
+          BloomFilter<uint64_t, 10, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Bloom" << cf << endl;
   }
-
   if (algorithmId == 5 || algorithmId < 0) {
-      auto cf = FilterBenchmark<SimdBlockFilter<>>(
+      auto cf = FilterBenchmark<SimdBlockFilter<SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
   }
 
   if (algorithmId == 6 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          GcsFilter<uint64_t, 8>>(
+          GcsFilter<uint64_t, 8, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "GCS" << cf << endl;
   }
 
   if (algorithmId == 7 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilterStable<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "CuckooStable12" << cf << endl;
-  }
-
-  if (algorithmId == 8 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          GQFilter<uint64_t, 8>>(
+          GQFilter<uint64_t, 8, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "CQF" << cf << endl;
   }
 
+  if (algorithmId == 8 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilterStable<uint64_t, 8, SingleTable, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Cuckoo8_stable" << cf << endl;
+  }
+
   if (algorithmId == 9 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 8 /* bits per item */, SingleTable /* not semi-sorted*/>>(
+          CuckooFilterStable<uint64_t, 12, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo8" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo12_stable" << cf << endl;
   }
 
   if (algorithmId == 10 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
+          CuckooFilterStable<uint64_t, 16, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo16_stable" << cf << endl;
   }
 
   if (algorithmId == 11 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 16 /* bits per item */, SingleTable /* not semi-sorted*/>>(
+          CuckooFilterStable<uint64_t, 13, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo16" << cf << endl;
+      cout << setw(NAME_WIDTH) << "CuckooSemiSort13_stable" << cf << endl;
   }
 
   if (algorithmId == 12 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 9 /* bits per item */, PackedTable /* semi-sorted*/>>(
+          CuckooFilter<uint64_t, 8, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "SemiSort9" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo8_2^n" << cf << endl;
   }
 
   if (algorithmId == 13 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(
+          CuckooFilter<uint64_t, 12, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "SemiSort13" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo12_2^n" << cf << endl;
   }
 
   if (algorithmId == 14 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 17 /* bits per item */, PackedTable /* semi-sorted*/>>(
+          CuckooFilter<uint64_t, 16, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo16_2^n" << cf << endl;
   }
 
   if (algorithmId == 15 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter<uint64_t, uint8_t, SimpleMixSplit>>(
+          CuckooFilter<uint64_t, 13, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor8SplitMix" << cf << endl;
+      cout << setw(NAME_WIDTH) << "CuckooSemiSort13_2^n" << cf << endl;
   }
 
   if (algorithmId == 16 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter2<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
+          XorFilter2<uint64_t, uint32_t, UInt12Array, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor8SplitMix/2" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor12" << cf << endl;
   }
 
   if (algorithmId == 17 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 10>, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor10SplitMix/2" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor10" << cf << endl;
   }
 
   if (algorithmId == 18 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 12>, SimpleMixSplit>>(
+          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 14>, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor12SplitMix/2" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor14" << cf << endl;
   }
 
   if (algorithmId == 19 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 14>, SimpleMixSplit>>(
+          XorFilter2n<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor14SplitMix/2" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor8_2^n" << cf << endl;
   }
 
+// broken algorithms (don't always find all key)
+/*
   if (algorithmId == 20 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter2<uint64_t, uint32_t, UInt12Array, SimpleMixSplit>>(
+          CuckooFilter<uint64_t, 9, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor12SplitMix/3" << cf << endl;
+      cout << setw(NAME_WIDTH) << "SemiSort9_2^n" << cf << endl;
   }
 
   if (algorithmId == 21 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          XorFilter2n<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
+          CuckooFilter<uint64_t, 17, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor8SplitMix2^n" << cf << endl;
+      cout << setw(NAME_WIDTH) << "SemiSort17_2^n" << cf << endl;
   }
+*/
 
 }
