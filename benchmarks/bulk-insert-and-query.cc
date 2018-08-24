@@ -442,26 +442,6 @@ void fixEndian(uint64_t* longArray, uint64_t byteCount) {
     }
 }
 
-/*
-static uint64_t murmur64(uint64_t h) {
-    h ^= h >> 33;
-    h *= UINT64_C(0xff51afd7ed558ccd);
-    h ^= h >> 33;
-    h *= UINT64_C(0xc4ceb9fe1a85ec53);
-    h ^= h >> 33;
-    return h;
-}
-*/
-
-static uint64_t unmurmur64(uint64_t h) {
-    h ^= h >> 33;
-    h *= UINT64_C(0x9cb4b2f8129337db);
-    h ^= h >> 33;
-    h *= UINT64_C(0x4f74430c22a54005);
-    h ^= h >> 33;
-    return h;
-}
-
 int main(int argc, char * argv[]) {
 
   if (argc < 2) {
@@ -502,20 +482,15 @@ int main(int argc, char * argv[]) {
   vector<uint64_t> to_lookup = seed == -1 ?
       GenerateRandom64<::std::random_device>(SAMPLE_SIZE) :
       GenerateRandom64Fast(SAMPLE_SIZE, seed + add_count);
-  if(seed == 0) {
-    // 0 is a special seed
-    cout << "Using a sequential ordering."<<endl;
-    for(uint64_t i = 0; i < to_add.size(); i++) to_add[i] = i;
-    for(uint64_t i = 0; i < to_lookup.size(); i++) to_lookup[i] = i + to_add.size();
-  } else if (seed == 1) {
-    // 0 is a special seed
-    cout << "Using a sequential un-murmur ordering."<<endl;
-    int shift = 0;
+  if(seed >= 0 && seed < 64) {
+    // 0-64 are special seeds
+    uint rotate = seed;
+    cout << "Using sequential ordering rotated by " << rotate << endl;
     for(uint64_t i = 0; i < to_add.size(); i++) {
-        to_add[i] = unmurmur64(i << shift);
+        to_add[i] = xorfilter::rotl64(i, rotate);
     }
     for(uint64_t i = 0; i < to_lookup.size(); i++) {
-        to_lookup[i] = unmurmur64((i + to_add.size()) << shift);
+        to_lookup[i] = xorfilter::rotl64(i + to_add.size(), rotate);
     }
   }
   assert(to_lookup.size() == SAMPLE_SIZE);
