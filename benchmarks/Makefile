@@ -12,7 +12,7 @@ SRC = ../src/hashutil.cc
 
 .PHONY: all
 
-BINS = conext-table3.exe conext-figure5.exe bulk-insert-and-query.exe bulk-insert-and-query-twoind
+BINS = conext-table3.exe conext-figure5.exe bulk-insert-and-query.exe
 
 all: $(BINS)
 
@@ -21,8 +21,3 @@ clean:
 
 %.exe: %.cc ${HEADERS} ${SRC} Makefile
 	$(CXX) $(CXXFLAGS) $< -o $@ $(SRC) $(LDFLAGS)
-
-%-twoind: %.cc ${HEADERS} ${SRC} Makefile
-	$(CXX) $(CXXFLAGS) $< -o $@ $(SRC) $(LDFLAGS) -DUSETWOIND
-
-
