@@ -442,6 +442,19 @@ void fixEndian(uint64_t* longArray, uint64_t byteCount) {
     }
 }
 
+uint64_t reverseBitsSlow(uint64_t v) {
+    // r will be reversed bits of v; first get LSB of v
+    uint64_t r = v & 1;
+    int s = sizeof(v) * CHAR_BIT - 1; // extra shift needed at end
+    for (v >>= 1; v; v >>= 1) {
+        r <<= 1;
+        r |= v & 1;
+        s--;
+    }
+    r <<= s; // shift when v's highest bits are zero
+    return r;
+}
+
 int main(int argc, char * argv[]) {
 
   if (argc < 2) {
@@ -482,7 +495,7 @@ int main(int argc, char * argv[]) {
   vector<uint64_t> to_lookup = seed == -1 ?
       GenerateRandom64<::std::random_device>(SAMPLE_SIZE) :
       GenerateRandom64Fast(SAMPLE_SIZE, seed + add_count);
-  if(seed >= 0 && seed < 64) {
+  if (seed >= 0 && seed < 64) {
     // 0-64 are special seeds
     uint rotate = seed;
     cout << "Using sequential ordering rotated by " << rotate << endl;
@@ -492,7 +505,18 @@ int main(int argc, char * argv[]) {
     for(uint64_t i = 0; i < to_lookup.size(); i++) {
         to_lookup[i] = xorfilter::rotl64(i + to_add.size(), rotate);
     }
+  } else if (seed >= 64 && seed < 128) {
+    // 64-127 are special seeds
+    uint rotate = seed - 64;
+    cout << "Using sequential ordering rotated by " << rotate << " and reversed bits " << endl;
+    for(uint64_t i = 0; i < to_add.size(); i++) {
+        to_add[i] = reverseBitsSlow(xorfilter::rotl64(i, rotate));
+    }
+    for(uint64_t i = 0; i < to_lookup.size(); i++) {
+        to_lookup[i] = reverseBitsSlow(xorfilter::rotl64(i + to_add.size(), rotate));
+    }
   }
+
   assert(to_lookup.size() == SAMPLE_SIZE);
 
   constexpr int NAME_WIDTH = 32;
