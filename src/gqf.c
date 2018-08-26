@@ -547,7 +547,7 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value)
 																			 QF_SLOTS_PER_BLOCK)->slots[(index %
 																																QF_SLOTS_PER_BLOCK)
 																			 * qf->metadata->bits_per_slot / 8];
-	// This is undefined:	
+	// This is undefined:
 	//uint64_t t = *p;
 	uint64_t t;
 	memcpy(&t,p,sizeof(t));
@@ -1856,7 +1856,7 @@ int64_t qf_resize_malloc(QF *qf, uint64_t nslots)
 		qfi_next(&qfi);
 		int ret = qf_insert(&new_qf, key, value, count, QF_NO_LOCK | QF_KEY_IS_HASH);
 		if (ret < 0) {
-			fprintf(stderr, "Failed to insert key: %lld into the new CQF.\n", key);
+			fprintf(stderr, "Failed to insert key: %" PRIx64 " into the new CQF.\n", key);
 			return ret;
 		}
 		ret_numkeys++;
@@ -1897,7 +1897,7 @@ uint64_t qf_resize(QF* qf, uint64_t nslots, void* buffer, uint64_t buffer_len)
 		qfi_next(&qfi);
 		int ret = qf_insert(&new_qf, key, value, count, QF_NO_LOCK | QF_KEY_IS_HASH);
 		if (ret < 0) {
-			fprintf(stderr, "Failed to insert key: %lld into the new CQF.\n", key);
+			fprintf(stderr, "Failed to insert key: %" PRIx64 " into the new CQF.\n", key);
 			abort();
 		}
 	} while(!qfi_end(&qfi));
@@ -2525,7 +2525,7 @@ void qf_multi_merge(const QF *qf_arr[], int nqf, QF *qfr)
 			qfi_next(&qfi_arr[0]);
 			iters++;
 		} while(!qfi_end(&qfi_arr[0]));
-		DEBUG_CQF("Num of iterations: %llu\n", iters);
+		DEBUG_CQF("Num of iterations: %" PRIx64 "\n", iters);
 	}
 
 	DEBUG_CQF("%s", "Final CQF after merging.\n");
