@@ -98,7 +98,7 @@ class CuckooFilterStable {
   explicit CuckooFilterStable(const size_t max_num_keys) : num_items_(0), victim_(), hasher_() {
     size_t assoc = 4;
     // bucket count needs to be even
-    bucketCount = (10 + max_num_keys / 0.95 / assoc) / 2 * 2;
+    bucketCount = (10 + max_num_keys / 0.94 / assoc) / 2 * 2;
     victim_.used = false;
     table_ = new TableType<bits_per_item>(bucketCount);
   }
