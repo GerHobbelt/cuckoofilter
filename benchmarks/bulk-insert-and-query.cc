@@ -561,7 +561,7 @@ int main(int argc, char * argv[]) {
   if (algorithmId == 5 || algorithmId < 0) {
       auto cf = FilterBenchmark<SimdBlockFilter<SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "SimdBlockedBloom-8" << cf << endl;
+      cout << setw(NAME_WIDTH) << "BlockedBloomSimd" << cf << endl;
   }
 
   if (algorithmId == 6 || algorithmId < 0) {
@@ -589,35 +589,35 @@ int main(int argc, char * argv[]) {
       auto cf = FilterBenchmark<
           CuckooFilterStable<uint64_t, 12, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo12-stable" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo-12-stable" << cf << endl;
   }
 
   if (algorithmId == 10 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilterStable<uint64_t, 16, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo16-stable" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo-16-stable" << cf << endl;
   }
 
   if (algorithmId == 11 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilterStable<uint64_t, 13, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "CuckooSemiSort13-stable" << cf << endl;
+      cout << setw(NAME_WIDTH) << "CuckooSemiSort-13-stable" << cf << endl;
   }
 
   if (algorithmId == 12 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 8, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo8-2^n" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo-8-2^n" << cf << endl;
   }
 
   if (algorithmId == 13 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 12, SingleTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo12_2^n" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Cuckoo-12-2^n" << cf << endl;
   }
 
   if (algorithmId == 14 || algorithmId < 0) {
@@ -669,21 +669,20 @@ int main(int argc, char * argv[]) {
       cout << setw(NAME_WIDTH) << "Bloom-20" << cf << endl;
   }
 
-
 // broken algorithms (don't always find all key)
 /*
   if (algorithmId == 20 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 9, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "SemiSort9_2^n" << cf << endl;
+      cout << setw(NAME_WIDTH) << "SemiSort-9-2^n" << cf << endl;
   }
 
   if (algorithmId == 21 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 17, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "SemiSort17_2^n" << cf << endl;
+      cout << setw(NAME_WIDTH) << "SemiSort-17-2^n" << cf << endl;
   }
 */
 
