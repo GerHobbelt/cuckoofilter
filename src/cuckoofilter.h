@@ -90,7 +90,7 @@ class CuckooFilter {
     size_t assoc = 4;
     size_t num_buckets = upperpower2(std::max<uint64_t>(1, max_num_keys / assoc));
     double frac = (double)max_num_keys / num_buckets / assoc;
-    if (frac > 0.96) {
+    if (frac > 0.94) {
       num_buckets <<= 1;
     }
     victim_.used = false;
