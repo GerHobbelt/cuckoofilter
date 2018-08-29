@@ -212,6 +212,7 @@ Status XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>
 
     }
 
+    uint16_t* fp = new uint16_t[arrayLength]();
     for (int i = reverseOrderPos - 1; i >= 0; i--) {
         // the hash of the key we insert next
         uint64_t hash = reverseOrder[i];
@@ -228,12 +229,14 @@ Status XorFilter2<ItemType, FingerprintType, FingerprintStorageType, HashFamily>
             } else {
                 // this is different from BDZ: using xor to calculate the
                 // fingerprint
-                xor2 ^= fingerprints->mask(fingerprints->get(h));
+                xor2 ^= fingerprints->mask(fp[h]);
             }
         }
-        fingerprints->set(change, xor2);
+        fp[change] = xor2;
     }
+    fingerprints->bulkSet(fp, arrayLength);
 
+    delete [] fp;
     delete [] t2;
     delete [] t2count;
     delete [] reverseOrder;
