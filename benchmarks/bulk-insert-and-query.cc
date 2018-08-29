@@ -664,9 +664,9 @@ int main(int argc, char * argv[]) {
 
   if (algorithmId == 20 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          BloomFilter<uint64_t, 16, SimpleMixSplit>>(
+          BloomFilter<uint64_t, 20, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Bloom-16" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Bloom-20" << cf << endl;
   }
 
 
