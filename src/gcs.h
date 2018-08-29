@@ -293,9 +293,9 @@ Status GcsFilter<ItemType, bits_per_item, HashFamily>::AddAll(
     // this was found experimentally
     int fingerprintBits = bits_per_item;
     golombShift = fingerprintBits - 1;
-    int averageBucketSize = 64;
-    // due to average bucket size of 64
-    fingerprintBits += 6;
+    int averageBucketSize = 16;
+    // due to average bucket size of 16
+    fingerprintBits += 4;
     uint64_t* data = new uint64_t[len];
     fingerprintMask = (1 << fingerprintBits) - 1;
     bucketCount = (int) ((len + averageBucketSize - 1) / averageBucketSize);
