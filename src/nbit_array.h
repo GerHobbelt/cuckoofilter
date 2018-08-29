@@ -21,6 +21,11 @@ public:
     inline void set(size_t index, ItemType value) {
         data[index] = value;
     }
+    void bulkSet(uint16_t* source, size_t length) {
+        for(int i = 0; i < length; i++) {
+            data[i] = source[i];
+        }
+    }
     inline ItemType mask(ItemType fingerprint) {
         return fingerprint;
     }
@@ -47,20 +52,27 @@ public:
         uint32_t word;
         memcpy(&word, data + firstBytePos, sizeof(uint32_t));
         return word >> ((index & 1) << 2);
-
+    }
+    void bulkSet(uint16_t* source, size_t length) {
+        for(int i = 0, j = 0; i < length;) {
+            uint32_t a = source[i++];
+            uint32_t b = source[i++];
+            data[j++] = (uint8_t) (a);
+            data[j++] = (uint8_t) ((a >> 8) | (b << 4));
+            data[j++] = (uint8_t) (b >> 4);
+        }
     }
     inline void set(size_t index, uint32_t value) {
         size_t wordpos = (index >> 1) * 3;
         unsigned int wp = (index & 1) * 12;
         size_t offval = (value & 0xfff) << wp;
-        size_t offmask = 0xFFF << wp;
+        size_t offmask = 0xfff << wp;
         uint32_t word;
         memcpy(&word, data + wordpos, sizeof(uint32_t));
         // no need for word & ~(offmask) if it's always 0 at the beginning
         // word = (word) | offval;
         word = (word & ~(offmask)) | offval;
         memcpy(data + wordpos, &word, sizeof(uint32_t));
-
     }
     inline uint32_t mask(uint32_t fingerprint) {
         return fingerprint & 0xfff;
@@ -85,29 +97,20 @@ public:
     inline ItemType get(size_t index) {
         size_t bitPos = index * bitsPerEntry;
         size_t firstBytePos = (size_t) (bitPos >> 3);
-
         uint32_t word = __builtin_bswap32(*((uint32_t*) (data + firstBytePos))) >> 8;
-/*
-        uint32_t word = ((data[firstBytePos] & 0xff) << 16) |
-                ((data[firstBytePos + 1] & 0xff) << 8) |
-                ((data[firstBytePos + 2] & 0xff));
-*/
         return (ItemType) ((word >> (24 - bitsPerEntry - (bitPos & 7))) & bitMask);
-
+    }
+    void bulkSet(uint16_t* source, size_t length) {
+        for(int i = 0; i < length; i++) {
+            set(i, source[i]);
+        }
     }
     inline void set(size_t index, ItemType value) {
         size_t bitPos = index * bitsPerEntry;
         size_t firstBytePos = (size_t) (bitPos >> 3);
-
         uint32_t word = __builtin_bswap32(*((uint32_t*) (data + firstBytePos))) >> 8;
-/*
-        uint32_t word = ((data[firstBytePos] & 0xff) << 16) |
-                ((data[firstBytePos + 1] & 0xff) << 8) |
-                ((data[firstBytePos + 2] & 0xff));
-*/
         word &= ~(bitMask << (24 - bitsPerEntry - (bitPos & 7)));
         word |= ((value & bitMask) << (24 - bitsPerEntry - (bitPos & 7)));
-
         data[firstBytePos] = (uint8_t) (word >> 16);
         data[firstBytePos + 1] = (uint8_t) (word >> 8);
         data[firstBytePos + 2] = (uint8_t) word;
@@ -119,7 +122,6 @@ public:
         return byteCount;
     }
 };
-
 
 // }  // namespace n_bit_array
 
