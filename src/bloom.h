@@ -25,8 +25,8 @@ inline uint32_t reduce(uint32_t hash, uint32_t n) {
     return (uint32_t) (((uint64_t) hash * n) >> 32);
 }
 
-size_t getBestK(size_t m, size_t n) {
-    return max(1, (int) round((double) m / n * log(2)));
+static size_t getBestK(size_t bitsPerItem) {
+    return max(1, (int) round((double) bitsPerItem * log(2)));
 }
 
 inline uint64_t getBit(uint32_t index) {
@@ -56,14 +56,15 @@ int nextPrime(int a) {
 }
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily = TwoIndependentMultiplyShift>
+    typename HashFamily = TwoIndependentMultiplyShift,
+    size_t k = (int) ((double) bits_per_item * 0.693147180559945 + 0.5)>
 class BloomFilter {
 
   uint64_t *data;
   size_t size;
-  int k;
   size_t arrayLength;
   size_t bitCount;
+  int kk;
   HashFamily hasher;
 
   double BitsPerItem() const { return k; }
@@ -71,7 +72,7 @@ class BloomFilter {
  public:
   explicit BloomFilter(const size_t n) : hasher() {
     this->size = 0;
-    this->k = getBestK(n * bits_per_item, n);
+    this->kk = getBestK(bits_per_item);
     this->bitCount = nextPrime(n * bits_per_item);
     this->arrayLength = (bitCount + 63) / 64;
     data = new uint64_t[arrayLength];
@@ -98,8 +99,9 @@ class BloomFilter {
 };
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily>
-Status BloomFilter<ItemType, bits_per_item, HashFamily>::Add(
+    typename HashFamily,
+    size_t k>
+Status BloomFilter<ItemType, bits_per_item, HashFamily, k>::Add(
     const ItemType &key) {
     uint64_t hash = hasher(key);
     uint32_t a = (uint32_t) (hash >> 32);
@@ -116,8 +118,9 @@ Status BloomFilter<ItemType, bits_per_item, HashFamily>::Add(
 }
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily>
-Status BloomFilter<ItemType, bits_per_item, HashFamily>::Contain(
+    typename HashFamily,
+    size_t k>
+Status BloomFilter<ItemType, bits_per_item, HashFamily, k>::Contain(
     const ItemType &key) const {
     uint64_t hash = hasher(key);
     uint32_t a = (uint32_t) (hash >> 32);
@@ -137,8 +140,9 @@ Status BloomFilter<ItemType, bits_per_item, HashFamily>::Contain(
 }
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily>
-std::string BloomFilter<ItemType, bits_per_item, HashFamily>::Info() const {
+    typename HashFamily,
+    size_t k>
+std::string BloomFilter<ItemType, bits_per_item, HashFamily, k>::Info() const {
   std::stringstream ss;
   ss << "BloomFilter Status:\n"
      << "\t\tKeys stored: " << Size() << "\n";
