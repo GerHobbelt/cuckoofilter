@@ -54,7 +54,7 @@ public:
         return word >> ((index & 1) << 2);
     }
     void bulkSet(uint16_t* source, size_t length) {
-        for(int i = 0, j = 0; i < length;) {
+        for(size_t i = 0, j = 0; i < length;) {
             uint32_t a = source[i++];
             uint32_t b = source[i++];
             data[j++] = (uint8_t) (a);
