@@ -57,7 +57,7 @@ int nextPrime(int a) {
 
 template <typename ItemType, size_t bits_per_item,
     typename HashFamily = TwoIndependentMultiplyShift,
-    size_t k = (int) ((double) bits_per_item * 0.693147180559945 + 0.5)>
+    int k = (int) ((double) bits_per_item * 0.693147180559945 + 0.5)>
 class BloomFilter {
 
   uint64_t *data;
@@ -99,8 +99,7 @@ class BloomFilter {
 };
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily,
-    size_t k>
+    typename HashFamily, int k>
 Status BloomFilter<ItemType, bits_per_item, HashFamily, k>::Add(
     const ItemType &key) {
     uint64_t hash = hasher(key);
@@ -118,8 +117,7 @@ Status BloomFilter<ItemType, bits_per_item, HashFamily, k>::Add(
 }
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily,
-    size_t k>
+    typename HashFamily, int k>
 Status BloomFilter<ItemType, bits_per_item, HashFamily, k>::Contain(
     const ItemType &key) const {
     uint64_t hash = hasher(key);
@@ -140,8 +138,7 @@ Status BloomFilter<ItemType, bits_per_item, HashFamily, k>::Contain(
 }
 
 template <typename ItemType, size_t bits_per_item,
-    typename HashFamily,
-    size_t k>
+    typename HashFamily, int k>
 std::string BloomFilter<ItemType, bits_per_item, HashFamily, k>::Info() const {
   std::stringstream ss;
   ss << "BloomFilter Status:\n"
