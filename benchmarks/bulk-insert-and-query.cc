@@ -44,7 +44,7 @@ using namespace gcsfilter;
 using namespace gqfilter;
 
 // The number of items sampled when determining the lookup performance
-const size_t SAMPLE_SIZE = 1000 * 1000;
+const size_t SAMPLE_SIZE = 10 * 1000 * 1000;
 
 // The statistics gathered for each table type:
 struct Statistics {
@@ -78,7 +78,7 @@ string StatisticsTableHeader(int type_width, int find_percent_count) {
     os << setw(7)
        << static_cast<int>(100 * i / static_cast<double>(find_percent_count - 1)) << '%';
   }
-  os << setw(9) << "ε" << setw(11) << "bits/item" << setw(11)
+  os << setw(10) << "ε" << setw(11) << "bits/item" << setw(11)
      << "bits/item" << setw(8) << "space" << setw(8) << "keys";
   return os.str();
 }
@@ -96,12 +96,12 @@ basic_ostream<CharT, Traits>& operator<<(
   // we get some nonsensical result for very small fpps
   if(stats.false_positive_probabilty > 0.0000001) {
     const auto minbits = log2(1 / stats.false_positive_probabilty);
-    os << setw(7) << setprecision(3) << stats.false_positive_probabilty * 100 << '%'
+    os << setw(8) << setprecision(4) << stats.false_positive_probabilty * 100 << '%'
        << setw(11) << setprecision(2) << stats.bits_per_item << setw(11) << minbits
        << setw(7) << setprecision(1) << 100 * (stats.bits_per_item / minbits - 1) << '%'
        << setw(8) << setprecision(1) << (stats.add_count / 1000000.);
   } else {
-    os << setw(7) << setprecision(3) << stats.false_positive_probabilty * 100 << '%'
+    os << setw(8) << setprecision(4) << stats.false_positive_probabilty * 100 << '%'
        << setw(11) << setprecision(2) << stats.bits_per_item << setw(11) << 64
        << setw(7) << setprecision(1) << 0 << '%'
        << setw(8) << setprecision(1) << (stats.add_count / 1000000.);
@@ -574,7 +574,7 @@ int main(int argc, char * argv[]) {
 
   if (algorithmId == 7 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          BloomFilter<uint64_t, 8, SimpleMixSplit>>(
+          BloomFilter<uint64_t, 10, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Bloom8" << cf << endl;
   }
@@ -588,7 +588,7 @@ int main(int argc, char * argv[]) {
 
   if (algorithmId == 9 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          BloomFilter<uint64_t, 20, SimpleMixSplit>>(
+          BloomFilter<uint64_t, 16, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Bloom16" << cf << endl;
   }
