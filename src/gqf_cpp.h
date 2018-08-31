@@ -98,13 +98,14 @@ Status GQFilter<ItemType, bits_per_item, HashFamily>::Add(
     int ret = qf_insert(&qf, hash & mask, 0, 1, QF_NO_LOCK);
     if (ret < 0) {
         std::cout << "failed insertion for key.\n";
-        if (ret == QF_NO_SPACE)
+        if (ret == QF_NO_SPACE) {
             std::cout << "CQF is full.\n";
-        else if (ret == QF_COULDNT_LOCK)
+        } else if (ret == QF_COULDNT_LOCK) {
             std::cout << "TRY_ONCE_LOCK failed.\n";
-        else
+        } else {
             std::cout << "Does not recognise return value.\n";
-            abort();
+        }
+        abort();
     }
     return Ok;
 }
