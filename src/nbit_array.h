@@ -101,7 +101,7 @@ public:
         return (ItemType) ((word >> (24 - bitsPerEntry - (bitPos & 7))) & bitMask);
     }
     void bulkSet(uint16_t* source, size_t length) {
-        for(int i = 0; i < length; i++) {
+        for(size_t i = 0; i < length; i++) {
             set(i, source[i]);
         }
     }
