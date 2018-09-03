@@ -574,7 +574,7 @@ int main(int argc, char * argv[]) {
 
   if (algorithmId == 7 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          BloomFilter<uint64_t, 10, SimpleMixSplit>>(
+          BloomFilter<uint64_t, 8, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "Bloom8" << cf << endl;
   }
