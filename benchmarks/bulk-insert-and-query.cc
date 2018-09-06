@@ -678,6 +678,13 @@ int main(int argc, char * argv[]) {
       cout << setw(NAME_WIDTH) << "Xor-14" << cf << endl;
   }
 
+  if (algorithmId == 100) {
+      auto start_time = NowNanos();
+      std::sort(to_add.begin(), to_add.end());
+      const auto sort_time = NowNanos() - start_time;
+      std::cout << "Sort time: " << sort_time / to_add.size() << " ns/key\n";
+  }
+
 // broken algorithms (don't always find all key)
 /*
   if (algorithmId == 20 || algorithmId < 0) {
