@@ -79,11 +79,25 @@ class CuckooFilterStable {
     // that way, bucket2 is never the original bucket,
     // and running this twice will give the original bucket, as needed
     uint32_t r = (reduce(hash, bucketCount >> 1) << 1) + 1;
+
+    // this is needed because the bucket size is not always 2^n:
     int32_t b2 = bucketCount - index - r;
-    // not sure how to avoid this branch
     if (b2 < 0) {
         b2 += bucketCount;
     }
+
+    // I tried the following alternatives (also combinations),
+    // but performance is the same:
+
+    // uint32_t b2 = bucketCount - index - r;
+    // b2 += bucketCount * (b2 >> 31);
+
+    // int32_t b2 = bucketCount - index - r;
+    // b2 += bucketCount & (b2 >> 31);
+
+    // int32_t b2 = r - index;
+    // b2 += bucketCount & (b2 >> 31);
+
     return b2;
   }
 
