@@ -27,9 +27,13 @@
 #include "xorfilter_plus.h"
 #include "bloom.h"
 #include "gcs.h"
+#ifdef __AVX2__
 #include "gqf_cpp.h"
+#endif
 #include "random.h"
+#ifdef __AVX2__
 #include "simd-block.h"
+#endif
 #include "timing.h"
 
 using namespace std;
@@ -41,7 +45,9 @@ using namespace xorfilter2n;
 using namespace xorfilter_plus;
 using namespace bloomfilter;
 using namespace gcsfilter;
+#ifdef __AVX2__
 using namespace gqfilter;
+#endif
 
 // The number of items sampled when determining the lookup performance
 const size_t SAMPLE_SIZE = 10 * 1000 * 1000;
@@ -144,6 +150,7 @@ struct FilterAPI<CuckooFilterStable<ItemType, bits_per_item, TableType, HashFami
   }
 };
 
+#ifdef __AVX2__
 template <typename HashFamily>
 struct FilterAPI<SimdBlockFilter<HashFamily>> {
   using Table = SimdBlockFilter<HashFamily>;
@@ -160,6 +167,8 @@ struct FilterAPI<SimdBlockFilter<HashFamily>> {
     return table->Find(key);
   }
 };
+
+#endif
 
 template <typename ItemType, typename FingerprintType>
 struct FilterAPI<XorFilter<ItemType, FingerprintType>> {
@@ -245,6 +254,7 @@ struct FilterAPI<GcsFilter<ItemType, bits_per_item, HashFamily>> {
   }
 };
 
+#ifdef __AVX2__
 template <typename ItemType, size_t bits_per_item, typename HashFamily>
 struct FilterAPI<GQFilter<ItemType, bits_per_item, HashFamily>> {
   using Table = GQFilter<ItemType, bits_per_item, HashFamily>;
@@ -258,6 +268,7 @@ struct FilterAPI<GQFilter<ItemType, bits_per_item, HashFamily>> {
     return (0 == table->Contain(key));
   }
 };
+#endif
 
 template <typename ItemType, size_t bits_per_item, typename HashFamily>
 struct FilterAPI<BloomFilter<ItemType, bits_per_item, HashFamily>> {
@@ -593,11 +604,13 @@ int main(int argc, char * argv[]) {
       cout << setw(NAME_WIDTH) << "Bloom16" << cf << endl;
   }
 
+#ifdef __AVX2__
   if (algorithmId == 10 || algorithmId < 0) {
       auto cf = FilterBenchmark<SimdBlockFilter<SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "BlockedBloom" << cf << endl;
   }
+#endif
 
   if (algorithmId == 11 || algorithmId < 0) {
       auto cf = FilterBenchmark<
@@ -606,12 +619,14 @@ int main(int argc, char * argv[]) {
       cout << setw(NAME_WIDTH) << "GCS" << cf << endl;
   }
 
+#ifdef __AVX2__
   if (algorithmId == 12 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           GQFilter<uint64_t, 8, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "CQF" << cf << endl;
   }
+#endif
 
 // other algorithms, but not all that interesting or
 // not fully optimized
