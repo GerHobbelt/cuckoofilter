@@ -98,32 +98,62 @@ class XorFilter {
   size_t SizeInBytes() const { return arrayLength * sizeof(FingerprintType); }
 };
 
+
+#define BETTERLOCALITY
+#ifdef BETTERLOCALITY
+struct t2val {
+  uint64_t t2;
+  uint64_t t2count;
+};
+
+typedef struct t2val t2val_t;
+
+#endif
+
 template <typename ItemType, typename FingerprintType,
           typename HashFamily>
 Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
     const vector<ItemType> keys, const size_t start, const size_t end) {
+
     int m = arrayLength;
     uint64_t* reverseOrder = new uint64_t[size];
     uint8_t* reverseH = new uint8_t[size];
     size_t reverseOrderPos;
     int hashIndex = 0;
+#ifdef BETTERLOCALITY
+    t2val_t * t2vals = new t2val_t[m];
+#else
     uint64_t* t2 = new uint64_t[m];
     uint8_t* t2count = new uint8_t[m];
+#endif
     while (true) {
+#ifndef BETTERLOCALITY
         memset(t2count, 0, sizeof(uint8_t[m]));
         memset(t2, 0, sizeof(uint64_t[m]));
+#else
+        memset(t2vals, 0, sizeof(t2val_t[m]));
+#endif
         for(size_t i = start; i < end; i++) {
             uint64_t k = keys[i];
             uint64_t hash = (*hasher)(k);
             int h0 = reduce((int) (hash), blockLength);
             int h1 = reduce((int) rotl64(hash, 21), blockLength) + blockLength;
             int h2 = reduce((int) rotl64(hash, 42), blockLength) + 2 * blockLength;
+#ifndef BETTERLOCALITY
             t2count[h0]++;
             t2[h0] ^= hash;
             t2count[h1]++;
             t2[h1] ^= hash;
             t2count[h2]++;
             t2[h2] ^= hash;
+#else
+            t2vals[h0].t2count++;
+            t2vals[h0].t2 ^= hash;
+            t2vals[h1].t2count++;
+            t2vals[h1].t2 ^= hash;
+            t2vals[h2].t2count++;
+            t2vals[h2].t2 ^= hash;
+#endif
         }
         reverseOrderPos = 0;
         int* alone = new int[arrayLength];
@@ -131,7 +161,11 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
         reverseOrderPos = 0;
         for(size_t nextAloneCheck = 0; nextAloneCheck < arrayLength;) {
             while (nextAloneCheck < arrayLength) {
+#ifndef BETTERLOCALITY
                 if (t2count[nextAloneCheck] == 1) {
+#else
+                if (t2vals[nextAloneCheck].t2count == 1) {
+#endif
                     alone[alonePos++] = nextAloneCheck;
                     // break;
                 }
@@ -139,21 +173,36 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
             }
             while (alonePos > 0) {
                 int i = alone[--alonePos];
+#ifdef BETTERLOCALITY
+                if (t2vals[i].t2count == 0) {
+                    continue;
+                }
+                long hash = t2vals[i].t2;
+#else
                 if (t2count[i] == 0) {
                     continue;
                 }
                 long hash = t2[i];
+#endif
                 uint8_t found = -1;
                 for (int hi = 0; hi < 3; hi++) {
                     int h = getHashFromHash(hash, hi, blockLength);
+#ifdef BETTERLOCALITY
+                    int newCount =  -- t2vals[h].t2count;
+#else
                     int newCount = --t2count[h];
+#endif
                     if (newCount == 0) {
                         found = (uint8_t) hi;
                     } else {
                         if (newCount == 1) {
                             alone[alonePos++] = h;
                         }
+#ifdef BETTERLOCALITY
+                        t2vals[h].t2 ^= hash;
+#else
                         t2[h] ^= hash;
+#endif
                     }
                 }
                 reverseOrder[reverseOrderPos] = hash;
@@ -168,12 +217,12 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
 
         std::cout << "WARNING: hashIndex " << hashIndex << "\n";
         if (hashIndex >= 0) {
-            size_t outputlimit = 5; // we don't want to spam
+           // size_t outputlimit = 5; // we don't want to spam
             std::cout << (end - start) << " keys; arrayLength " << arrayLength
                 << " blockLength " << blockLength
                 << " reverseOrderPos " << reverseOrderPos << "\n";
-            int pos = 0;
-            for (size_t i = 0; pos < 1000 && i < arrayLength; i++) {
+           // int pos = 0;
+           /* for (size_t i = 0; pos < 1000 && i < arrayLength; i++) {
                 if (t2count[i] > 1) {
                     if(outputlimit > 0) {
                        std::cout << "  count[" << i << "] = " << (int) t2count[i] << "\n";
@@ -193,7 +242,7 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
                       outputlimit --;
                     }
                 }
-            }
+            }*/
 
             // for(size_t i = start; i < end; i++) {
             //     uint64_t k = keys[i];
@@ -231,12 +280,14 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
         }
         fingerprints[change] = xor2;
     }
-
+#ifdef BETTERLOCALITY
+    delete [] t2vals;
+#else
     delete [] t2;
     delete [] t2count;
+#endif
     delete [] reverseOrder;
     delete [] reverseH;
-
     return Ok;
 }
 
