@@ -35,6 +35,9 @@
 #include "simd-block.h"
 #endif
 #include "timing.h"
+#ifdef __linux__
+#include "linux-perf-events.h"
+#endif
 
 using namespace std;
 
@@ -388,6 +391,18 @@ Statistics FilterBenchmark(
   result.bits_per_item = static_cast<double>(CHAR_BIT * filter.SizeInBytes()) / add_count;
   ::std::random_device random;
   size_t found_count = 0;
+#ifdef __linux__
+  vector<int> evts;
+  evts.push_back(PERF_COUNT_HW_CPU_CYCLES);
+  evts.push_back(PERF_COUNT_HW_INSTRUCTIONS);
+  evts.push_back(PERF_COUNT_HW_CACHE_MISSES);
+  evts.push_back(PERF_COUNT_HW_BRANCH_MISSES);
+  LinuxEvents<PERF_TYPE_HARDWARE> unified(evts);
+  vector<unsigned long long> results;
+  results.resize(evts.size());
+  cout << endl;
+#endif
+
   for (const double found_probability : {0.0, 0.25, 0.50, 0.75, 1.00}) {
     uint64_t mixingseed = seed == -1 ? random() : seed;
     const auto to_lookup_mixed = DuplicateFreeMixIn(&to_lookup[0], &to_lookup[actual_sample_size], &to_add[0],
@@ -405,9 +420,19 @@ Statistics FilterBenchmark(
     }
     size_t found_before = found_count;
     const auto start_time = NowNanos();
+#ifdef __linux__
+    unified.start();
+#endif
     for (const auto v : to_lookup_mixed) {
       found_count += FilterAPI<Table>::Contain(v, &filter);
     }
+#ifdef __linux__
+    unified.end(results);
+    printf("cycles = %10.zu (cycles per key %10.3f) instructions = %10.zu (ins/key %10.3f,ins/cycles %10.3f) cache misses = %10.zu (misses per keys %10.3f) branch misses = %10.zu (misses per keys %10.3f) \n", 
+      (size_t)results[0], results[0]*1.0/to_lookup_mixed.size(), (size_t)results[1], results[1]*1.0/to_lookup_mixed.size() , results[1]*1.0/results[0], (size_t)results[2], results[2]*1.0/to_lookup_mixed.size(), 
+      (size_t)results[3], results[3] * 1.0/to_lookup_mixed.size());
+#endif
+
     const auto lookup_time = NowNanos() - start_time;
     size_t found_this_section = found_count - found_before;
     if (found_this_section < true_match) {
