@@ -110,7 +110,7 @@ typedef struct t2val t2val_t;
 
 #endif
 
-#define BLOCK_SHIFT 14
+#define BLOCK_SHIFT 18
 #define BLOCK_LEN (1 << BLOCK_SHIFT)
 
 void applyBlock(uint64_t* tmp, int b, int len, t2val_t * t2vals) {
@@ -148,7 +148,7 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
 
         int blocks = 1 + (3 * blockLength) / BLOCK_LEN;
         uint64_t* tmp = new uint64_t[blocks * BLOCK_LEN];
-        int* tmpc = new int[blocks];
+        int* tmpc = new int[blocks]();
         for(size_t i = start; i < end; i++) {
             uint64_t k = keys[i];
             uint64_t hash = (*hasher)(k);
