@@ -110,6 +110,18 @@ typedef struct t2val t2val_t;
 
 #endif
 
+#define BLOCK_SHIFT 14
+#define BLOCK_LEN (1 << BLOCK_SHIFT)
+
+void applyBlock(uint64_t* tmp, int b, int len, t2val_t * t2vals) {
+    for (int i = 0; i < len; i += 2) {
+        uint64_t x = tmp[(b << BLOCK_SHIFT) + i];
+        int index = (int) tmp[(b << BLOCK_SHIFT) + i + 1];
+        t2vals[index].t2count++;
+        t2vals[index].t2 ^= x;
+    }
+}
+
 template <typename ItemType, typename FingerprintType,
           typename HashFamily>
 Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
@@ -133,9 +145,26 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
 #else
         memset(t2vals, 0, sizeof(t2val_t[m]));
 #endif
+
+        int blocks = 1 + (3 * blockLength) / BLOCK_LEN;
+        uint64_t* tmp = new uint64_t[blocks * BLOCK_LEN];
+        int* tmpc = new int[blocks];
         for(size_t i = start; i < end; i++) {
             uint64_t k = keys[i];
             uint64_t hash = (*hasher)(k);
+            for (int hi = 0; hi < 3; hi++) {
+                int index = getHashFromHash(hash, hi, blockLength);
+                int b = index >> BLOCK_SHIFT;
+                int i2 = tmpc[b];
+                tmp[(b << BLOCK_SHIFT) + i2] = hash;
+                tmp[(b << BLOCK_SHIFT) + i2 + 1] = index;
+                tmpc[b] += 2;
+                if (i2 + 2 == BLOCK_LEN) {
+                    applyBlock(tmp, b, i2 + 2, t2vals);
+                    tmpc[b] = 0;
+                }
+            }
+/*
             int h0 = reduce((int) (hash), blockLength);
             int h1 = reduce((int) rotl64(hash, 21), blockLength) + blockLength;
             int h2 = reduce((int) rotl64(hash, 42), blockLength) + 2 * blockLength;
@@ -154,7 +183,14 @@ Status XorFilter<ItemType, FingerprintType, HashFamily>::AddAll(
             t2vals[h2].t2count++;
             t2vals[h2].t2 ^= hash;
 #endif
+*/
         }
+        for (int b = 0; b < blocks; b++) {
+            applyBlock(tmp, b, tmpc[b], t2vals);
+        }
+        delete[] tmp;
+        delete[] tmpc;
+
         reverseOrderPos = 0;
         int* alone = new int[arrayLength];
         int alonePos = 0;
