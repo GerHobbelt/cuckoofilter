@@ -428,8 +428,8 @@ Statistics FilterBenchmark(
     }
 #ifdef __linux__
     unified.end(results);
-    printf("cycles = %10.zu (cycles per key %10.3f) instructions = %10.zu (ins/key %10.3f,ins/cycles %10.3f) cache misses = %10.zu (misses per keys %10.3f) branch misses = %10.zu (misses per keys %10.3f) \n", 
-      (size_t)results[0], results[0]*1.0/to_lookup_mixed.size(), (size_t)results[1], results[1]*1.0/to_lookup_mixed.size() , results[1]*1.0/results[0], (size_t)results[2], results[2]*1.0/to_lookup_mixed.size(), 
+    printf("cycles = %10.zu (cycles per key %10.3f) instructions = %10.zu (ins/key %10.3f,ins/cycles %10.3f) cache misses = %10.zu (misses per keys %10.3f) branch misses = %10.zu (misses per keys %10.3f) \n",
+      (size_t)results[0], results[0]*1.0/to_lookup_mixed.size(), (size_t)results[1], results[1]*1.0/to_lookup_mixed.size() , results[1]*1.0/results[0], (size_t)results[2], results[2]*1.0/to_lookup_mixed.size(),
       (size_t)results[3], results[3] * 1.0/to_lookup_mixed.size());
 #endif
 
@@ -653,88 +653,88 @@ int main(int argc, char * argv[]) {
   }
 #endif
 
-// other algorithms, but not all that interesting or
-// not fully optimized
   if (algorithmId == 13 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 8, SingleTable, SimpleMixSplit>>(
+          XorFilterPlus<uint64_t, uint8_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo2^n-8" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor+8" << cf << endl;
   }
 
   if (algorithmId == 14 || algorithmId < 0) {
       auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 12, SingleTable, SimpleMixSplit>>(
+          XorFilterPlus<uint64_t, uint16_t, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo2^n-12" << cf << endl;
+      cout << setw(NAME_WIDTH) << "Xor+16" << cf << endl;
   }
 
   if (algorithmId == 15 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 16, SingleTable, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Cuckoo2^n-16" << cf << endl;
-  }
-
-  if (algorithmId == 16 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          CuckooFilter<uint64_t, 13, PackedTable, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "CuckooSemiSort2^n-13" << cf << endl;
-  }
-
-  if (algorithmId == 17 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          XorFilterPlus<uint64_t, uint8_t, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "XorPlus-8" << cf << endl;
-  }
-
-  if (algorithmId == 18 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          XorFilterPlus<uint64_t, uint16_t, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "XorPlus-16" << cf << endl;
-  }
-
-  if (algorithmId == 19 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          XorFilter2n<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor2^n-8" << cf << endl;
-  }
-
-  if (algorithmId == 20 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 10>, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor-10" << cf << endl;
-  }
-
-  if (algorithmId == 21 || algorithmId < 0) {
-      auto cf = FilterBenchmark<
-          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 14>, SimpleMixSplit>>(
-          add_count, to_add, to_lookup, seed);
-      cout << setw(NAME_WIDTH) << "Xor-14" << cf << endl;
-  }
-
-  if (algorithmId == 100) {
       auto start_time = NowNanos();
       std::sort(to_add.begin(), to_add.end());
       const auto sort_time = NowNanos() - start_time;
       std::cout << "Sort time: " << sort_time / to_add.size() << " ns/key\n";
   }
 
+// other algorithms, but not all that interesting or
+// not fully optimized
+  if (algorithmId == 16 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilter<uint64_t, 8, SingleTable, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Cuckoo2^n-8" << cf << endl;
+  }
+
+  if (algorithmId == 17 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilter<uint64_t, 12, SingleTable, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Cuckoo2^n-12" << cf << endl;
+  }
+
+  if (algorithmId == 18 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilter<uint64_t, 16, SingleTable, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Cuckoo2^n-16" << cf << endl;
+  }
+
+  if (algorithmId == 19 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          CuckooFilter<uint64_t, 13, PackedTable, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "CuckooSemiSort2^n-13" << cf << endl;
+  }
+
+  if (algorithmId == 20 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2n<uint64_t, uint8_t, UIntArray<uint8_t>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor2^n-8" << cf << endl;
+  }
+
+  if (algorithmId == 21 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 10>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor-10" << cf << endl;
+  }
+
+  if (algorithmId == 22 || algorithmId < 0) {
+      auto cf = FilterBenchmark<
+          XorFilter2<uint64_t, uint16_t, NBitArray<uint16_t, 14>, SimpleMixSplit>>(
+          add_count, to_add, to_lookup, seed);
+      cout << setw(NAME_WIDTH) << "Xor-14" << cf << endl;
+  }
+
 // broken algorithms (don't always find all key)
 /*
-  if (algorithmId == 20 || algorithmId < 0) {
+  if (algorithmId == 23 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 9, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
       cout << setw(NAME_WIDTH) << "SemiSort-9-2^n" << cf << endl;
   }
 
-  if (algorithmId == 21 || algorithmId < 0) {
+  if (algorithmId == 24 || algorithmId < 0) {
       auto cf = FilterBenchmark<
           CuckooFilter<uint64_t, 17, PackedTable, SimpleMixSplit>>(
           add_count, to_add, to_lookup, seed);
