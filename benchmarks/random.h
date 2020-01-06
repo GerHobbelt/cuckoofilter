@@ -12,7 +12,7 @@
 
 ::std::vector<::std::uint64_t> GenerateRandom64(::std::size_t count) {
   ::std::vector<::std::uint64_t> result(count);
-  ::std::random_device random;
+    ::std::random_device random{};
   // To generate random keys to lookup, this uses ::std::random_device which is slower but
   // stronger than some other pseudo-random alternatives. The reason is that some of these
   // alternatives (like libstdc++'s ::std::default_random, which is a linear congruential

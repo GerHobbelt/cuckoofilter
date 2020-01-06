@@ -47,12 +47,13 @@
 // time: 19.43 seconds
 //
 
-#include <climits>
+#include <limits.h>
 #include <iomanip>
 #include <map>
 #include <stdexcept>
 #include <vector>
 
+#include "crate.h"
 #include "cuckoofilter.h"
 #include "random.h"
 #include "simd-block.h"
@@ -137,6 +138,18 @@ struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType>> {
 };
 
 template <>
+struct FilterAPI<Crate> {
+  using Table = Crate;
+  static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
+  static void Add(uint64_t key, Table * table) {
+    table->Add(key);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return table->Contain(key);
+  }
+};
+
+template <>
 struct FilterAPI<SimdBlockFilter<>> {
   using Table = SimdBlockFilter<>;
   static Table ConstructFromAddCount(size_t add_count) {
@@ -178,15 +191,18 @@ Statistics FilterBenchmark(
     const auto to_lookup_mixed = MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
         &to_add[add_count], found_probability);
     const auto start_time = NowNanos();
+    constexpr int REPEATS = 50;
+    for (int j = 0; j < REPEATS; ++j) {
     for (const auto v : to_lookup_mixed) {
       found_count += FilterAPI<Table>::Contain(v, &filter);
     }
+    }
     const auto lookup_time = NowNanos() - start_time;
     result.finds_per_nano[100 * found_probability] =
-        SAMPLE_SIZE / static_cast<double>(lookup_time);
+        REPEATS * SAMPLE_SIZE / static_cast<double>(lookup_time);
     if (0.0 == found_probability) {
       result.false_positive_probabilty =
-          found_count / static_cast<double>(to_lookup_mixed.size());
+          found_count / static_cast<double>(to_lookup_mixed.size() * REPEATS);
     }
   }
   return result;
@@ -198,9 +214,9 @@ int main(int argc, char * argv[]) {
     return 1;
   }
   stringstream input_string(argv[1]);
-  size_t add_count;
+  size_t add_count = 0;
   input_string >> add_count;
-  if (input_string.fail()) {
+  if (false && input_string.fail()) {
     cerr << "Invalid number: " << argv[1];
     return 2;
   }
@@ -212,8 +228,19 @@ int main(int argc, char * argv[]) {
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
-  auto cf = FilterBenchmark<
-      CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
+  Statistics cf;
+
+
+  cf = FilterBenchmark<Crate>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate" << cf << endl;
+  return 0;
+  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
+
+  cf = FilterBenchmark<CuckooFilter<uint64_t, 12 /* bits per item */,
+                                    SingleTable /* not semi-sorted*/>>(
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
@@ -248,8 +275,5 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
 
-  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
-
-  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
 
 }
