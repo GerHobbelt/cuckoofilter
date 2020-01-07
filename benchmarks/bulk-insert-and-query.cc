@@ -191,7 +191,7 @@ Statistics FilterBenchmark(
     const auto to_lookup_mixed = MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
         &to_add[add_count], found_probability);
     const auto start_time = NowNanos();
-    constexpr int REPEATS = 50;
+    constexpr int REPEATS = 1;
     for (int j = 0; j < REPEATS; ++j) {
     for (const auto v : to_lookup_mixed) {
       found_count += FilterAPI<Table>::Contain(v, &filter);

@@ -65,6 +65,44 @@ inline bool pd_find_50(int64_t quot, uint8_t rem, const __m512i *pd) {
 
 // find an 8-bit value in a pocket dictionary with quotients in [0,50) and 51
 // values
+inline bool pd_find_50_alt2(int64_t quot, uint8_t rem, const __m512i *pd) {
+  assert(0 == (reinterpret_cast<uintptr_t>(pd) % 64));
+  assert(quot < 50);
+  unsigned __int128 header = 0;
+  memcpy(&header, pd, sizeof(header));
+  constexpr unsigned __int128 kLeftoverMask =
+      (((unsigned __int128)1) << (50 + 51)) - 1;
+  header = header & kLeftoverMask;
+  // [begin,end) are the zeros in the header that correspond to the fingerprints
+  // with quotient quot.
+
+  uint64_t begin = 0;
+  if (quot > 0) {
+    const int64_t pop = _mm_popcnt_u64(header);
+    if (quot - 1 < pop) {
+      begin = select64(header, quot - 1) + 1 - quot;
+    } else {
+      begin = 64 + select64(header >> 64, quot - 1 - pop) + 1 - quot;
+    }
+  }
+  const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
+  assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
+  assert(end == select128(header, quot) - quot);
+  // const uint64_t begin =
+  //     (quot ? (select128withPop64(header, quot - 1, pop) + 1) : 0) -
+  //     quot;
+  // const uint64_t end = select128withPop64(header, quot, pop) - quot;
+  assert(begin <= end);
+  assert(end <= 51);
+  const __m512i target = _mm512_set1_epi8(rem);
+  uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
+  // round up to remove the header
+  constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
+  assert(kHeaderBytes < sizeof(header));
+  v = v >> kHeaderBytes;
+  return (v & ((UINT64_C(1) << end) - 1)) >> begin;
+}
+
 inline bool pd_find_50_alt(int64_t quot, uint8_t rem, const __m512i *pd) {
   assert(0 == (reinterpret_cast<uintptr_t>(pd) % 64));
   assert(quot < 50);
@@ -170,8 +208,10 @@ inline bool pd_add_50(int64_t quot, uint8_t rem, __m512i *pd) {
   // assert(val == 50);
 
   assert(pd_find_50(quot, rem, pd) == pd_find_50_alt(quot, rem, pd));
+  assert(pd_find_50_alt2(quot, rem, pd) == pd_find_50_alt(quot, rem, pd));
   assert(pd_find_50(quot, rem, pd));
   assert(pd_find_50_alt(quot, rem, pd));
+  assert(pd_find_50_alt2(quot, rem, pd));
   return true;
 }
 
@@ -196,7 +236,7 @@ struct Crate {
                   64]);
   }
   bool Contain(uint64_t key) const {
-    return pd_find_50_alt(
+    return pd_find_50_alt2(
         ((key & 0xffff) * 50) >> 16, key >> 16,
         &buckets_[(static_cast<unsigned __int128>(key) *
                    static_cast<unsigned __int128>(bucket_count_)) >>
