@@ -137,9 +137,9 @@ struct FilterAPI<CuckooFilter<ItemType, bits_per_item, TableType>> {
   }
 };
 
-template <>
-struct FilterAPI<Crate> {
-  using Table = Crate;
+template <bool FINDER(int64_t quot, uint8_t rem, const __m512i *pd)>
+struct FilterAPI<GenericCrate<FINDER>> {
+  using Table = GenericCrate<FINDER>;
   static Table ConstructFromAddCount(size_t add_count) { return Table(add_count); }
   static void Add(uint64_t key, Table * table) {
     table->Add(key);
@@ -191,7 +191,7 @@ Statistics FilterBenchmark(
     const auto to_lookup_mixed = MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
         &to_add[add_count], found_probability);
     const auto start_time = NowNanos();
-    constexpr int REPEATS = 1;
+    constexpr int REPEATS = 50;
     for (int j = 0; j < REPEATS; ++j) {
     for (const auto v : to_lookup_mixed) {
       found_count += FilterAPI<Table>::Contain(v, &filter);
@@ -231,19 +231,32 @@ int main(int argc, char * argv[]) {
   Statistics cf;
 
 
-  cf = FilterBenchmark<Crate>(add_count, to_add, to_lookup);
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt>>(add_count, to_add, to_lookup);
 
-  cout << setw(NAME_WIDTH) << "Crate" << cf << endl;
-  return 0;
-  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "GenericCrate" << cf << endl;
 
-  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt2>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "GenericCrate2" << cf << endl;
+
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt3>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "GenericCrate3" << cf << endl;
+
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "GenericCrate4" << cf << endl;
 
   cf = FilterBenchmark<CuckooFilter<uint64_t, 12 /* bits per item */,
                                     SingleTable /* not semi-sorted*/>>(
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
+
+  return 0;
+  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
 
   cf = FilterBenchmark<
       CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(

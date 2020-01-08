@@ -103,6 +103,63 @@ inline bool pd_find_50_alt2(int64_t quot, uint8_t rem, const __m512i *pd) {
   return (v & ((UINT64_C(1) << end) - 1)) >> begin;
 }
 
+inline bool pd_find_50_alt3(int64_t quot, uint8_t rem, const __m512i *pd) {
+  assert(0 == (reinterpret_cast<uintptr_t>(pd) % 64));
+  assert(quot < 50);
+  unsigned __int128 header = 0;
+  memcpy(&header, pd, sizeof(header));
+  constexpr unsigned __int128 kLeftoverMask =
+      (((unsigned __int128)1) << (50 + 51)) - 1;
+  header = header & kLeftoverMask;
+
+  uint64_t begin = 0;
+  if (quot > 0) {
+    const int64_t pop = _mm_popcnt_u64(header);
+    const auto q1 = quot - 1;
+    begin = (q1 < pop) ? select64(header, q1) : (64 + select64(header >> 64, q1-pop));
+    begin -= q1;
+  }
+  const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
+  assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
+  assert(end == select128(header, quot) - quot);
+  assert(begin <= end);
+  assert(end <= 51);
+  const __m512i target = _mm512_set1_epi8(rem);
+  uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
+
+  constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
+  assert(kHeaderBytes < sizeof(header));
+  v = v >> kHeaderBytes;
+  return (v & ((UINT64_C(1) << end) - 1)) >> begin;
+}
+
+inline bool pd_find_50_alt4(int64_t quot, uint8_t rem, const __m512i *pd) {
+  unsigned __int128 header = 0;
+  memcpy(&header, pd, sizeof(header));
+  constexpr unsigned __int128 kLeftoverMask =
+      (((unsigned __int128)1) << (50 + 51)) - 1;
+  header = header & kLeftoverMask;
+
+  uint64_t begin = 0;
+  if (quot > 0) {
+    // maybe use quot - 1?
+    auto p = _mm_popcnt_u64(header & ((UINT64_C(1) << (quot - 1)) - 1));
+    begin = select64(header >> (quot - 1), quot - 1 - p);
+  }
+  const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
+  assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
+  assert(end == select128(header, quot) - quot);
+  assert(begin <= end);
+  assert(end <= 51);
+  const __m512i target = _mm512_set1_epi8(rem);
+  uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
+
+  constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
+  assert(kHeaderBytes < sizeof(header));
+  v = v >> kHeaderBytes;
+  return (v & ((UINT64_C(1) << end) - 1)) >> begin;
+}
+
 inline bool pd_find_50_alt(int64_t quot, uint8_t rem, const __m512i *pd) {
   assert(0 == (reinterpret_cast<uintptr_t>(pd) % 64));
   assert(quot < 50);
@@ -209,37 +266,41 @@ inline bool pd_add_50(int64_t quot, uint8_t rem, __m512i *pd) {
 
   assert(pd_find_50(quot, rem, pd) == pd_find_50_alt(quot, rem, pd));
   assert(pd_find_50_alt2(quot, rem, pd) == pd_find_50_alt(quot, rem, pd));
+  assert(pd_find_50_alt3(quot, rem, pd) == pd_find_50_alt(quot, rem, pd));
+  assert(pd_find_50_alt4(quot, rem, pd) == pd_find_50_alt(quot, rem, pd));
   assert(pd_find_50(quot, rem, pd));
   assert(pd_find_50_alt(quot, rem, pd));
   assert(pd_find_50_alt2(quot, rem, pd));
+  assert(pd_find_50_alt3(quot, rem, pd));
+  assert(pd_find_50_alt4(quot, rem, pd));
   return true;
 }
 
 #include <algorithm>
 
-struct Crate {
+template <bool FINDER(int64_t quot, uint8_t rem, const __m512i *pd)>
+struct GenericCrate {
   uint64_t bucket_count_;
   __m512i *buckets_;
   uint64_t SizeInBytes() const { return sizeof(*buckets_) * bucket_count_; }
-  Crate(size_t add_count) {
+  GenericCrate(size_t add_count) {
     bucket_count_ = add_count / 45;
     buckets_ = new __m512i[bucket_count_];
     std::fill(buckets_, buckets_ + bucket_count_,
               __m512i{(INT64_C(1) << 50) - 1, 0, 0, 0, 0, 0, 0, 0});
   }
-  ~Crate() { delete[] buckets_; }
+  ~GenericCrate() { delete[] buckets_; }
   bool Add(uint64_t key) {
     return pd_add_50(
-        ((key & 0xffff) * 50) >> 16, key >> 16,
-        &buckets_[(static_cast<unsigned __int128>(key) *
-                   static_cast<unsigned __int128>(bucket_count_)) >>
-                  64]);
+        ((key >> 40) * 50) >> 24, key >> 32,
+        &buckets_[(static_cast<uint64_t>(static_cast<uint32_t>(key)) *
+                   bucket_count_) >>
+                  32]);
   }
   bool Contain(uint64_t key) const {
-    return pd_find_50_alt2(
-        ((key & 0xffff) * 50) >> 16, key >> 16,
-        &buckets_[(static_cast<unsigned __int128>(key) *
-                   static_cast<unsigned __int128>(bucket_count_)) >>
-                  64]);
+    return FINDER(((key >> 40) * 50) >> 24, key >> 32,
+                  &buckets_[(static_cast<uint64_t>(static_cast<uint32_t>(key)) *
+                             bucket_count_) >>
+                            32]);
   }
 };

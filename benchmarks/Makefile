@@ -1,6 +1,6 @@
 # Uncomment one of the following to switch between debug and opt mode
 OPT = -O3 -DNDEBUG
-#OPT = -O0 -ggdb3 -fsanitize=address # -fsanitize=memory -fsanitize-memory-track-origins -DNDEBUG -stdlib=libc++ -nostdinc++ -I/usr/lib/llvm-9/include/c++/v1/ -L/usr/lib/llvm-9/lib -Wl,-rpath,/usr/lib/llvm-9/lib
+#OPT = -O0 -ggdb3 -fsanitize=address -fsanitize=undefined # -fsanitize=memory -fsanitize-memory-track-origins -DNDEBUG -stdlib=libc++ -nostdinc++ -I/usr/lib/llvm-9/include/c++/v1/ -L/usr/lib/llvm-9/lib -Wl,-rpath,/usr/lib/llvm-9/lib
 
 CXXFLAGS += -fno-strict-aliasing -Wall -std=c++17 -I. -I../src/ $(OPT) -march=native
 
