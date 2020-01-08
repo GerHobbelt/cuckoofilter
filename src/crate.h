@@ -160,6 +160,40 @@ inline bool pd_find_50_alt4(int64_t quot, uint8_t rem, const __m512i *pd) {
   return (v & ((UINT64_C(1) << end) - 1)) >> begin;
 }
 
+inline bool pd_find_50_alt4x64(const int64_t quot[64], const uint8_t rem[64], const __m512i *pd[64]) {
+  __m512i header[16];
+  for (int i = 0; i < 16; ++i) {
+    _mm512_i64gather_epi64((__m512i{0, 1, 4, 5, 8, 9, 12, 13}), &pd[4 * i], 1);
+  }
+  constexpr int64_t kLeftoverMask = (INT64_C(1) << (50 + 51 - 64)) - 1;
+  constexpr __m512i kLeftoverMask512 = {-1, kLeftoverMask, -1, kLeftoverMask,
+                                     -1, kLeftoverMask, -1, kLeftoverMask};
+  for (int i = 0;i < 16; ++i) {
+    header[i] = header[i] & kLeftoverMask512;
+  }
+
+  // uint64_t begin[64] = 0;
+  // if (quot > 0) {
+  //   // maybe use quot - 1?
+  //   auto p = _mm_popcnt_u64(header & ((UINT64_C(1) << (quot - 1)) - 1));
+  //   begin = select64(header >> (quot - 1), quot - 1 - p);
+  // }
+  // const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
+  // assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
+  // assert(end == select128(header, quot) - quot);
+  // assert(begin <= end);
+  // assert(end <= 51);
+  // const __m512i target = _mm512_set1_epi8(rem);
+  // uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
+
+  // constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
+  // assert(kHeaderBytes < sizeof(header));
+  // v = v >> kHeaderBytes;
+  // return (v & ((UINT64_C(1) << end) - 1)) >> begin;
+
+  return true;
+}
+
 inline bool pd_find_50_alt(int64_t quot, uint8_t rem, const __m512i *pd) {
   assert(0 == (reinterpret_cast<uintptr_t>(pd) % 64));
   assert(quot < 50);
@@ -303,4 +337,46 @@ struct GenericCrate {
                              bucket_count_) >>
                             32]);
   }
+  uint64_t Contain64(const uint64_t keys[64]) const {
+    uint32_t indexes[64];
+    for (int i = 0; i < 64; ++i) {
+      indexes[i] = (static_cast<uint64_t>(static_cast<uint32_t>(keys[i])) *
+                    bucket_count_) >>
+                   32;
+    }
+    for (int i = 0; i < 64; ++i) {
+      __builtin_prefetch(&buckets_[indexes[i]], 0 /* read only */,
+                         0 /*non-temporal */);
+    }
+    uint64_t result = 0;
+    for (int i = 0; i < 64; ++i) {
+      result |=
+          (static_cast<uint64_t>(FINDER(((keys[i] >> 40) * 50) >> 24,
+                                        keys[i] >> 32, &buckets_[indexes[i]]))
+           << i);
+    }
+    return result;
+  }
+
+  unsigned __int128 Contain128(const uint64_t keys[128]) const {
+    uint32_t indexes[128];
+    for (int i = 0; i < 128; ++i) {
+      indexes[i] = (static_cast<uint64_t>(static_cast<uint32_t>(keys[i])) *
+                    bucket_count_) >>
+                   32;
+    }
+    for (int i = 0; i < 128; ++i) {
+      __builtin_prefetch(&buckets_[indexes[i]], 0 /* read only */,
+                         0 /*non-temporal */);
+    }
+    uint64_t result = 0;
+    for (int i = 0; i < 128; ++i) {
+      result |=
+          (static_cast<unsigned __int128>(FINDER(((keys[i] >> 40) * 50) >> 24,
+                                        keys[i] >> 32, &buckets_[indexes[i]]))
+           << i);
+    }
+    return result;
+  }
+
 };
