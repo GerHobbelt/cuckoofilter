@@ -147,10 +147,10 @@ struct FilterAPI<GenericCrate<FINDER>> {
     table->Add(key);
   }
   template <int BATCH>
-  static bool Contain(const uint64_t *key, const Table *table) {
+  static unsigned __int128 Contain(const uint64_t *key, const Table *table) {
     if (BATCH == 1) return table->Contain(*key);
     if (BATCH == 64) return table->Contain64(key);
-    if (BATCH == 128) return table->Contain64(key);
+    if (BATCH == 128) return table->Contain128(key);
   }
 };
 
@@ -171,7 +171,22 @@ struct FilterAPI<SimdBlockFilter<>> {
   }
 };
 
-template <typename Table, int BATCH = 1>
+struct NothingBurger {
+  size_t SizeInBytes() const { return 0; }
+};
+
+template <>
+struct FilterAPI<NothingBurger> {
+  using Table = NothingBurger;
+  static Table ConstructFromAddCount(size_t) { return NothingBurger(); }
+  static void Add(uint64_t, Table *) {}
+  template <int BATCH>
+  static bool Contain(const uint64_t *, const Table *) {
+    return true;
+  }
+};
+
+template <typename Table, int BATCH = 1, bool SERIALIZE = false>
 Statistics FilterBenchmark(
     size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup) {
   if (add_count > to_add.size()) {
@@ -197,12 +212,27 @@ Statistics FilterBenchmark(
   for (const double found_probability : {0.0, 0.25, 0.50, 0.75, 1.00}) {
     const auto to_lookup_mixed = MixIn(&to_lookup[0], &to_lookup[SAMPLE_SIZE], &to_add[0],
         &to_add[add_count], found_probability);
-    const auto start_time = NowNanos();
+    auto start_time = NowNanos();
     constexpr int REPEATS = 50;
     for (int j = 0; j < REPEATS; ++j) {
       for (unsigned i = 0; i + BATCH <= to_lookup_mixed.size(); i += BATCH) {
-        found_count +=
-            FilterAPI<Table>::template Contain<BATCH>(&to_lookup_mixed[i], &filter);
+        unsigned __int128 tmp = FilterAPI<Table>::template Contain<BATCH>(
+            &to_lookup_mixed[i], &filter);
+        for (int p = 0; p < BATCH; ++p) {
+          found_count += (tmp >> p) & 1;
+          // const bool uh = FilterAPI<Table>::template Contain<1>(
+          //    &to_lookup_mixed[i + p], &filter);
+          //assert(((tmp >> p) & 1) == (uh == 1));
+        }
+        if (SERIALIZE) {
+          for (int k = 0; k < 1/*BATCH*/; ++k) {
+            const auto start_time2 = NowNanos();
+            asm volatile("" ::: "memory");
+            _mm_mfence();
+            const auto fence_time = NowNanos() - start_time2;
+            start_time += fence_time;
+          }
+        }
       }
     }
     const auto lookup_time = NowNanos() - start_time;
@@ -211,8 +241,9 @@ Statistics FilterBenchmark(
         static_cast<double>(lookup_time);
     if (0.0 == found_probability) {
       result.false_positive_probabilty =
-          found_count / static_cast<double>((to_lookup_mixed.size() / BATCH) *
-                                            BATCH * REPEATS);
+          found_count /
+          static_cast<double>(((to_lookup_mixed.size() / BATCH) * BATCH) *
+                              REPEATS);
     }
   }
   return result;
@@ -226,7 +257,7 @@ int main(int argc, char * argv[]) {
   stringstream input_string(argv[1]);
   size_t add_count = 0;
   input_string >> add_count;
-  if (false && input_string.fail()) {
+  if (input_string.fail()) {
     cerr << "Invalid number: " << argv[1];
     return 2;
   }
@@ -234,48 +265,75 @@ int main(int argc, char * argv[]) {
   const vector<uint64_t> to_add = GenerateRandom64(add_count);
   const vector<uint64_t> to_lookup = GenerateRandom64(SAMPLE_SIZE);
 
-  constexpr int NAME_WIDTH = 20;
+  constexpr int NAME_WIDTH = 27;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
   Statistics cf;
 
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt>>(add_count, to_add, to_lookup);
 
-  // cf = FilterBenchmark<GenericCrate<pd_find_50_alt>>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "Crate" << cf << endl;
 
-  // cout << setw(NAME_WIDTH) << "Crate" << cf << endl;
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt>, 64>(add_count, to_add, to_lookup);
 
-  // cf = FilterBenchmark<GenericCrate<pd_find_50_alt>, 64>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "Crate x 64 fetch" << cf << endl;
 
-  // cout << setw(NAME_WIDTH) << "Crate x 64 fetch" << cf << endl;
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt2>>(add_count, to_add, to_lookup);
 
-  // cf = FilterBenchmark<GenericCrate<pd_find_50_alt2>>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "Crate2" << cf << endl;
 
-  // cout << setw(NAME_WIDTH) << "Crate2" << cf << endl;
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt2>, 64>(add_count, to_add, to_lookup);
 
-  // cf = FilterBenchmark<GenericCrate<pd_find_50_alt2>, 64>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "Crate2 x 64 fetch" << cf << endl;
 
-  // cout << setw(NAME_WIDTH) << "Crate2 x 64 fetch" << cf << endl;
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt3>>(add_count, to_add, to_lookup);
 
-  // cf = FilterBenchmark<GenericCrate<pd_find_50_alt3>>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "Crate3" << cf << endl;
 
-  // cout << setw(NAME_WIDTH) << "Crate3" << cf << endl;
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt3>, 64>(add_count, to_add, to_lookup);
 
-  // cf = FilterBenchmark<GenericCrate<pd_find_50_alt3>, 64>(add_count, to_add, to_lookup);
+  cout << setw(NAME_WIDTH) << "Crate3 x 64 fetch" << cf << endl;
 
-  // cout << setw(NAME_WIDTH) << "Crate3 x 64 fetch" << cf << endl;
+  cf = FilterBenchmark<NothingBurger, true>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "NothingBurger serial" << cf << endl;
 
   cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>>(add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Crate4" << cf << endl;
 
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt5>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate5" << cf << endl;
+
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>, 1, true>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate4 serial" << cf << endl;
+
   cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>, 64>(add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Crate4 x 64 fetch" << cf << endl;
 
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>, 64, true>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate4 x 64 fetch serial" << cf << endl;
+
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt5>, 64>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate5 x 64 fetch" << cf << endl;
+
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt5>, 64, true>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate5 x 64 fetch serial" << cf << endl;
+
   cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>, 128>(add_count, to_add, to_lookup);
 
-  cout << setw(NAME_WIDTH) << "Crate4 x 64 fetch" << cf << endl;
+  cout << setw(NAME_WIDTH) << "Crate4 x 128 fetch" << cf << endl;
+
+  cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>, 128, true>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Crate4 x 128 fetch serial" << cf << endl;
 
   cf = FilterBenchmark<CuckooFilter<uint64_t, 12 /* bits per item */,
                                     SingleTable /* not semi-sorted*/>>(
@@ -283,7 +341,12 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
 
-  return 0;
+  cf = FilterBenchmark<CuckooFilter<uint64_t, 12 /* bits per item */,
+                                    SingleTable /* not semi-sorted*/>, true>(
+      add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Cuckoo12 serial" << cf << endl;
+
   cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
