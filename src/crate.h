@@ -228,6 +228,9 @@ inline bool pd_find_50_alt4(int64_t quot, uint8_t rem, const __m512i *pd) {
 //
 // While this might be slower than some other alternatives, it is a
 // step towards vectorization.
+//
+// This would be simpler if the format made the header start with a 1. That
+// would require modifying the insert procedure.
 inline bool pd_find_50_alt5(int64_t quot, uint8_t rem, const __m512i *pd) {
   unsigned __int128 header = 0;
   memcpy(&header, pd, sizeof(header));
@@ -255,6 +258,53 @@ inline bool pd_find_50_alt5(int64_t quot, uint8_t rem, const __m512i *pd) {
   v = v >> kHeaderBytes;
   return (v & ((UINT64_C(1) << end) - 1)) >> begin;
 }
+
+inline uint8_t pd_find_50_x8(__m512i quot, const uint8_t rem[8],
+                             const __m512i *base, __m256i pd_idxs) {
+  uint8_t result = 0;
+  pd_idxs =* sizeof(base[0]);
+  auto pd_idxs_back = pd_idxs + sizeof(uint64_t);
+  __m512i fake_header[2];
+  fake_header[0] = _mm512_i32gather_epi64(pd_idxs, base, 1);
+  fake_header[1] = _mm512_i32gather_epi64(pd_idxs_back, base, 1);
+
+  constexpr uint64_t kLeftoverMaskLo = (UINT64_C(1) << (50 + 51 - 64)) - 1;
+  constexpr __m512i kLeftoverMask = {
+      kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo,
+      kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo};
+  fake_header[0] &= kLeftoverMask;
+
+  constexpr __m512i ones = {1,1,1,1,1,1,1,1};
+  auto mask = _mm512_srli_epi64(
+      _mm512_sub_epi64(_mm512_sllv_epi64(ones, quot), ones), 1);
+  auto pops = _mm512_popcnt_epi64(fake_header[1] & mask);
+
+  __m512i real_header[2];
+  real_header[0] = _mm512_unpackhi_epi64(fake_header[1], fake_header[0]);
+  real_header[1] = _mm512_unpacklo_epi64(fake_header[1], fake_header[0]);
+
+  // STOPPED HERE
+  
+  uint64_t begin = 0;
+
+
+  // & quot with 63 to let remove testb instruction.
+  begin = select64_alt((header << 1) >> (quot & 63), quot - 1 - p);
+
+  const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
+  assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
+  assert(end == select128(header, quot) - quot);
+  assert(begin <= end);
+  assert(end <= 51);
+  const __m512i target = _mm512_set1_epi8(rem);
+  uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
+
+  constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
+  assert(kHeaderBytes < sizeof(header));
+  v = v >> kHeaderBytes;
+  return (v & ((UINT64_C(1) << end) - 1)) >> begin;
+}
+
 
 
 // insert a pair of a quotient (mod 50) and an 8-bit remainder in a pocket
