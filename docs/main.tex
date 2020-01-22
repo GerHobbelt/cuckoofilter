@@ -1,0 +1,226 @@
+\documentclass[letterpaper]{article}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\begin{document}
+\title{Tail Filters}
+\maketitle
+
+\section{Introduction}
+
+We will discuss {\em approximate membership query} (or {\em ``AMQ''}) data structures.
+An instance of an AMQ is an over-approximation of a set $S$, and is equipped with a {\bf lookup} operation that returns {\bf true} for any key in $S$ and {\bf false} with high probability for any key not in $S$.
+
+\section{Notation}
+
+If not otherwise specified, $U$ is a finite universe of keys, $F$ is an AMQ, $x \in U$ is a key, $s$ is a bitstring, $m$, $n$, and $i$ are non-negative integers, and $0 < \epsilon < 1$.
+The size of a set $Y$ is denoted ``$|Y|$''; the length of a bitstring $s$ is also denoted $|s|$.
+The binary logarithm $\log_2$ is denoted ``$\lg$''.
+$\lfloor r \rfloor$ is the largest integer less than or equal to $r$.
+%$\widehat{n}$ is $\{0, 1, \dots , 2^n - 1\}$, which is isomorphic with the set of bitstrings of length $n$.
+
+Any function $f: P \to Q$ can be extended to a function from subsets of $P$ to subsets of $Q$ by $f(P) \triangleq \{ q \in Q: \exists p \in P, f(p) = q\}$.
+
+$[n]$ denotes $\{0, 1, \dots n - 1 \}$.
+Note that $[2^n]$ is trivially isomorphic to bitstrings of length $n$.
+In an abuse of notation, when $n$ is implicit, values in $[2^n]$ and their equivalent bitstrings will be interchangable.
+Similarly, ``$[2^n]$'' will sometimes denote the set of bitstrings of length $n$, rather than $\{0, 1, \dots, 2^n - 1\}$.
+
+%% ; we'll call this isomorphism $v$.
+%% The set of bitstrings of length $n$ can thus be denoted ``$v^{-1}[2^n]$''.
+%% In an abuse of notation, $v^{-1}[2^n]$ will sometimes be denoted simply ``$[2^n]$''.
+
+%% There also exists an injection, $w$, from the set of bitstrings $\cup_{i \in [n]} [2^i]$ to $[2^n]$ by $w(m \in [2^i]) = v(2^i + v^{-1}(m))$.
+%% This representation is not surjective due to a single value of $[2^n]$ that has no pre-image: the bitstring consisting of all zeros
+
+The set of bitstrings of length less than $n$,  $\bigcup_{i < n} [2^i]$, is isomorphic to to $[2^n]$ via $(m \in [2^i]) \mapsto 2^i + m$.
+This representation is not surjective due to a single value of $[2^n]$ that has no pre-image: $0$.
+This value can be repurposed so that any value in $[2^n]$ can be thought of either as being absent or a bitstring of length less than $n$.
+
+Each AMQ $F$ represents a subset of $U$.
+The subset of $U$ represented by a structure $F$ is denoted $[F]$.
+The size of the subset relative to the whole universe, $|[F]|/|U|$, is called the {\em false positive probability}, or {\em ``fpp''}.
+
+The AMQ's discussed here support at least the following three operations:
+
+\begin{description}
+\item[initialize$(m, \epsilon)$] creates a structure.
+  The parameters are hints about the initial insert calls:
+  $m$ is a hint regarding the suggested initial pre-allocated space of the data structure, with the intention of allowing $m$ calls to {\bf insert} before more space needs to be allocated;
+  $\epsilon$ is a hint regarding the fpp, which should be less than or equal to $\epsilon$ until $m$ or more {\bf insert} calls have been made.
+  %% Up to $m$ keys can be {\bf insert}ed.
+  %% $m$ is called the {\em capacity} of $F$.
+  %% $\epsilon$ is called the {\em false positive probability}, or ``{\em fpp}''.
+\item[insert$(x)$] adds the key $x$ to $F$ such that $x \in [F]$.
+  It might increase the false positive probability or the space usage of $F$, or both.
+\item[lookup$(x)$] returns {\bf true} if $x \in [F]$.
+  Note that if $x \in [F]$, it need not have been inserted, since $[F]$ is an over-approximation of the set of insert keys.
+%  Note that $\epsilon \geq (|[F]| - n)/|U|)$.
+% \item[upsize] doubles the capacity of $F$; it may increase the fpp.
+\end{description}
+
+Each key in the universe $U$ is associated with a bitstring of length $\lg |U|$.
+%; this is commonly done through hashing.
+ % $\lg |U| - \lg \epsilon + c_1$, for some constant $c_1$ to be specified later.
+For the remainder of the paper, we will assume that the keys inserted have random values.
+This is frequently done by considering operations on the set $h(U)$, where $h$ is a suitable hash function, rather than $U$.
+For the rest of this paper, the universe $F$ is over will actually be $h(U)$, though we will refer to it as $U$, as we have no more need for the original ``$U$''.
+
+The main challenge of this work is to keep all of the following low:
+
+\begin{enumerate}
+\item The fpp of $F$
+\item The number of bits needed to store $F$
+\item The time complexities of {\bf insert} and {\bf lookup}
+\end{enumerate}
+
+\section{Practical quotienting dictionaries with continual minimal overhead}
+
+[Combination of cuckoo filters, the A-B design of shingle filters or the journal version of Morton filters, and DySECT]
+
+\section{The tail filter}
+
+The {\em tail filter} is based on the design of the filter in Pagh et al.
+
+In this section, we'll first describe the abstract semantics of tail filters, using this to show their fpp.
+After that, we'll describe a mechanism for storing tail filters to reduce space usage and operation time complexity.
+
+A tail filter contains a set of bitstrings of varying lengths. %, and its fpp increases as it grows.
+{\bf lookup$(x)$} is defined to return {\bf true} if any of the bitstrings in $F$ is a prefix of $x$.
+
+Additionally, no bitstring may be the prefix of another.
+%If two unequal bit strings $x$ and $y$ are both prefixes of a third, then either $x$ is a prefix of $y$ or vice versa, so this prefix-freeness
+This property can be maintained by doing a {\bf lookup} before each {\bf insert}.
+
+Tail filters additionally store a count of the number of {\bf insert} operations performed so far, as well as $m$ and $\epsilon$ from their {\bf initialize} operation.
+The {\bf insert} count is used to define {\em ``epochs''}.
+An {\em ``epoch''} consists of a temporally contiguous set of {\bf insert} calls.
+Epoch 0 consists of the first $m$ {\bf insert}s.
+Epoch $i+1$ consists of the $2^i m$ {\bf insert}s after epoch $i$.
+
+Epochs have an important operational manifestation during insert: all bitstrings {\bf insert}ed into a tail filter during epoch $j$ have length $j + \lfloor \lg (m / \epsilon) \rfloor$.
+
+The fpp of a tail filter can be calculated as follows:
+
+Each {\bf insert} in epoch $j$ adds $2^{-j - \lfloor \lg (m / \epsilon) \rfloor}$ to the fpp.
+The structure starts with an fpp of $0$.
+By the end of epoch $0$, its fpp is $m2^{- \lfloor \lg (m / \epsilon) \rfloor}$. % < 2 \epsilon$.
+Each additional full epoch $j$ adds $m 2^{j-1} 2^{-j - \lfloor \lg (m / \epsilon) \rfloor} = (1/2) m 2^{- \lfloor \lg (m / \epsilon) \rfloor}$ to the fpp.
+
+The last epoch is epoch $\lfloor \lg (n/m) \rfloor$, so the total fpp is less than or equal to $m (1 + \lfloor \lg (n/m) \rfloor / 2) 2^{- \lfloor \lg (m / \epsilon) \rfloor}$.
+$2^{- \lfloor \lg (m / \epsilon) \rfloor} < 2 (\epsilon / m)$, so the total fpp is less than $\epsilon (2 + \lfloor \lg (n/m) \rfloor)$.
+This matches or improves the result of Pagh et al. when $2 + \lfloor \lg (n/m) \rfloor \in \lg^{O(1)} |U|$
+
+To reduce the space usage and the time complexities of {\bf insert} and {\bf lookup}, a tail filter is stored in two structures.
+
+A bitset of length $2^{\lfloor \lg n \rfloor}$ is used to represent all bitstrings of length less than or equal to $\lfloor \lg n \rfloor$.
+(This is all bitstrings inserted in epochs $0$ through $\lfloor \lg n \rfloor - \lfloor \lg (m / \epsilon) \rfloor$, inclusive)
+The bitset is initialized with all bits set to $0$.
+Each bitstring $x$ of length $j$ is then represented by storing a $1$ in all positions $\{x t + k : k \in [t]\}$, where $t$ is  $2^{\lfloor \lg n \rfloor - j}$.
+In other words, the locations corresponding to each bitstring of length $\lfloor \lg n \rfloor$ that has $x$ as a prefix are set to $1$.
+
+Since this bitset is only used for epochs that are not the current one, {\bf insert} does not need to operate on this part of the structure.
+{\bf lookup$(x)$} takes $O(1)$ time, consisting only of checking the bit at the position corresponding to the first $\lfloor \lg n \rfloor$ bits of $x$.
+
+
+The remainder of the structure consists of bitstrings of length between $\lfloor \lg n \rfloor + 1$ and $\lfloor \lg(n/m) \rfloor + \lfloor \lg (m / \epsilon) \rfloor$, inclusive.
+There are $n - m  2^{\lfloor \lg n \rfloor - \lfloor \lg (m / \epsilon) \rfloor}$ of these.
+They are embedded in the set $[2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg (m / \epsilon) \rfloor + 1}]$.
+These are stored using the quotient DySECT dictionary, using less than $(1 + o(1)) p (4 + \lceil \lg q \rceil - \lfloor \lg p \rfloor)$, where $p = n - m  2^{\lfloor \lg n \rfloor - \lfloor \lg (m / \epsilon) \rfloor}$ and $q = 2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg (m / \epsilon) \rfloor + 1}$.
+$\lfloor \lg p \rfloor > \lg n - 1$, and $\lceil lg q \rceil < 3 + \lg n - \lg \epsilon$, so the total space usage is less than $(1 + o(1)) n (8 - \lg \epsilon)$.
+The constant $8$ is rather loose and can be improved with a tighter analysis.
+
+Combined with the bitset, this makes the total space usage $(1 + \iota) n \lg (1/\epsilon) + O(n)$ bits.
+Since the fpp is $\epsilon (2 + \lfloor \lg (n/m) \rfloor)$, attaining a specific fixed fpp of $\delta$ uses, in the notation of Pagh et al., $(1 + o(1)) n (\lg (1/\epsilon) + \lg \lg n) + O(n)$, improving on $(1 + o(1)) n (\lg \epsilon) + O(n \lg \lg n)$.
+Careful accounting might indicate their bound is actually as high as $O(n (\lg (1/\epsilon) + \lg \lg |U|))$.
+
+
+%% Two additional definitions will help in defining {\bf insert}.
+
+%% \begin{itemize}
+%% \item A {\em ``trace''} is an ordered set of operations consisting of a single {\bf initialize} call and zero or more {\bf insert} calls.
+%%   A trace can be {\em ``executed''} to produce a filter.
+%%   %; the execution of a trace $T$ is denoted ``$[T]$''
+%%   %A single tail filter may  have two different traces of different length.
+
+
+
+
+
+% TODO(jbapple): how to deal with $m$ in fpp definition. How to define fpp of F without knowing what m is supposed to be?
+
+%< \epsilon$.
+
+%% Let ``$\{x\}$'' denote $x - \lfloor x \rfloor$.
+%% Then $m 2^{- \lfloor \lg (m / \epsilon) \rfloor}$ equals $m 2^{- \lg (m / \epsilon) + \{ \lg (m / \epsilon) \}}$
+
+
+
+%% It has $n - m 2^{\lfloor \lg (n/m)\rfloor - 1}$ keys, so it adds
+
+%% $$(n - m 2^{\lfloor \lg (n/m)\rfloor - 1}) 2^{- \lfloor \lg (n/m) \rfloor - \lfloor \lg (m / \epsilon) \rfloor}$$
+%% $$n 2^{- \lfloor \lg (n/m) \rfloor - \lfloor \lg (m / \epsilon) \rfloor} - m 2^{-1 - \lfloor \lg(m / \epsilon) \rfloor} $$
+
+%% Let ``$\{x\}$'' denote $x - \lfloor x \rfloor$.
+%% Then we have
+
+%% $$n 2^{- \lg (n/m) + \{ \lg (n/m) \} - \lg (m / \epsilon) + \{ \lg (m / \epsilon) \}} - m 2^{-1 - \lg (m / \epsilon) + \{ \lg(m / \epsilon) \}} $$
+%% $$n 2^{- \lg (n/\epsilon) + \{ \lg (n/m) \} + \{ \lg (m / \epsilon) \}} - \epsilon 2^{-1 + \{ \lg(m / \epsilon) \}} $$
+%% $$\epsilon 2^{\{ \lg (n/m) \} + \{ \lg (m / \epsilon) \}} - \epsilon 2^{-1 + \{ \lg(m / \epsilon) \}} $$
+%% $$\epsilon (2^{\{ \lg (n/m) \} + \{ \lg (m / \epsilon) \}} - 2^{-1 + \{ \lg(m / \epsilon) \}}) $$
+
+%% Consider a trace that begins with a call to {\bf initialize$(m, \epsilon)$}.
+%% At the end of a trace of length $n$, $F$ will be internally represented as $n$ bitstrings of length up to $\lceil \lg (n / \epsilon) \rceil$.
+%% We will show that $F$ has fpp less than or equal to $\epsilon (2 + \lfloor \lg (n/m) \rfloor)$.
+%% Note that if $|U| \geq 16m$ and $\epsilon = \delta /(2 + \lfloor \lg (|U| / m) \rfloor / 2)$, then $-\lg \epsilon \leq \lg \lg |U| - \lg \delta$ and the fpp of $F$ is $\delta$, matching the bounds of Pagh et. al.
+
+
+%% In tail filters, no bitstring may be the prefix of another.
+%% If two unequal bit strings $x$ and $y$ are both prefixes of a third, then either $x$ is a prefix of $y$ or vice versa
+%% As
+
+%% string $x$
+
+%% This can be achieved by doing a {\bf lookup} before each {\bf insert}.
+%% In fa
+
+
+%% , so wlog, we'll assume each insert increases $|[F]|$.
+%% In our warm-up structure, we simply keep a list of the {\bf insert}ed bitstrings.
+
+% , which can be checked in $O(n (\lceil \lg n \rceil - \lg \epsilon))$ time, where $n$ is the capacity
+
+
+%% As a warm-up, we first describe a tail filter with high query and insert time and high space usage.
+%% This will serve to justify the claim about the false positive probability.
+%% In the follow-on, we'll describe a more space- and time-efficient way to store the same set of bitstrings with the same fpp.
+
+
+%% Not, also, that Since no {\bf insert} 
+
+%% % ``$|F|$'' will denote the number of bitstrings in $F$ and will be called the ``size'' of $F$.
+
+
+
+%% To determine the fpp of $F$, we need to check the subset of $U = [2^{\lceil \lg (n / \epsilon) \rceil + 1}]$ that {\bf lookup} returns {\bf true} for.
+%% Since $F$ has capacity $n$, 
+
+%% {\bf insert$(x)$} first checks if {\bf lookup$(x)$} is true; if not, it proceeds.
+%% The operation then depends on the size and capacity of $F$.
+%% If the size is the capacity, {\bf upsize} is called, doubling the capacity.
+%% Otherwise, let $m$ be the capacity passed to {\bf initialize}.
+%% If the capcacity is is less than $m$, insert the first
+%% If the capacity equals the size, {\bf upsize} is called
+
+\section{Differences from Pagh et al.}
+
+Doesn't need to double the space when full.
+
+An asymptotically reduced upper bound on the space.
+
+Now oblivious: don't need to know maximum filter size ahead of time.
+
+\end{document}
+
+%%  LocalWords:  AMQ lookup bitstring bitstrings fpp AMQ's pre DySECT
+%%  LocalWords:  quotienting Pagh et al bitset
