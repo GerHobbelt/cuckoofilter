@@ -5,6 +5,7 @@ main.pdf: Makefile main.tex
 
 clean:
 	latexmk -C main.tex
+	rm main.bbl
 
 continuous:
 	yes x | latexmk -pdf -pvc main.tex
