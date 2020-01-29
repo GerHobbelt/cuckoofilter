@@ -58,7 +58,8 @@ The AMQ's discussed here support at least the following three operations:
 \item[insert$(x)$] adds the key $x$ to $F$ such that $x \in [F]$.
   It might increase the fpp or the space usage of $F$, or both.
 \item[lookup$(x)$] returns {\bf true} if $x \in [F]$.
-  Note that if $x \in [F]$, it need not have been inserted, since $[F]$ is an over-approximation of the set of insert keys.
+  In the reverse direction, $[F]$ can be defined as $\{x \in U : {\bf insert}(x) = {\bf true}\}$.
+  Note that if $x \in [F]$, it need not have been {\bf insert}ed, since $[F]$ is an over-approximation of the set of insert keys.
 %  Note that $\epsilon \geq (|[F]| - n)/|U|)$.
 % \item[upsize] doubles the capacity of $F$; it may increase the fpp.
 \end{description}
@@ -84,6 +85,10 @@ The main challenge of this work is to keep all of the following low:
 \section{Practical quotienting dictionaries with continual minimal overhead}
 
 [Combination of cuckoo filters, the A-B design of shingle filters or the journal version of Morton filters, and DySECT]
+
+\subsection{Applications}
+
+Dynamic Bloomier filters. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}
 
 \section{The tail filter}
 
@@ -203,37 +208,9 @@ The sum total fpp is $m 2^{- \lfloor \lg (m / \epsilon) \rfloor} (1 + \lfloor \l
 
 The tail filter implementation tracks, in addition to $m$, $\epsilon$, and the cohort number, two data structures.
 
-%One structure stores all bitstrings in $[F]$ that have length greater than $\lfloor \lg n \rfloor$ in a map from $[2^{\lfloor \lg (m/\epsilon) \rfloor}]$ to bitstrings of length up to $\lfloor \lg(n/m) \rfloor$, embedded in $[2^{\lfloor \lg(n/m) \rfloor + 1}]$ as described earlier.
-
 One structure stores all bitstrings in $F$ that have length greater than or equal to $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$.
 They are stored in a map in which the keys are values from $[2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor}]$ and the values are bitstrings of length up to $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor$, embedded in bitstrings of length exactly $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor + 1$ as described earlier.
-Using a quotient DySECT dictionary, this can be stored in $(1 + o(1))(\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor)(\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor + 1) \leq (1+o(1))n(\lg (1/\epsilon) + O(1))$ bits of space.
-
-%% The map is stored in a quotient DySECT dictionary.
-%% If $ \lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor < \lfloor \lg (m/\epsilon) \rfloor$, then all bitstrings are longer than $\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor$.
-%% In this case, the quotient DySECT dictionary can store the $n$ bitstrings in $(1 + o(1)) n (O(1) + \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor)$ bits of space.
-%% This is also $(1 + o(1)) n (O(1) - \lg \epsilon)$.
-
-%% Otherwise, the number of bitstrings shorter than $\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor + 1$ is $m2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon)\rfloor}$, which is at least $m2^{\lg(n/m) + \lg m -  \lg (m/\epsilon) - 2}= m2^{\lg (n\epsilon/m) - 2} = n\epsilon/4$.
-
-
-
-
-%% Otherwise, the number of bitstrings longer than $\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor$ is
-
-%% $$n - m2^{\lfloor \lg (n/m) \rfloor} + \sum_{j=1 + \lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}^{\lfloor \lg (n/m) \rfloor - 1} m2^{j-1}$$
-%% $$n - m2^{\lfloor \lg (n/m) \rfloor} + m2^{\lfloor \lg (n/m) \rfloor - 1} - m2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}$$
-%% $$m(n/m) - m2^{\lfloor \lg (n/m) \rfloor} + m\left(2^{\lfloor \lg (n/m) \rfloor - 1} - 2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
-%% $$m2^{\lg (n/m)} - m2^{\lfloor \lg (n/m) \rfloor} + m\left(2^{\lfloor \lg (n/m) \rfloor - 1} - 2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
-%% $$m2^{\lfloor \lg (n/m) \rfloor}\left(2^{\lg (n/m) - \lfloor \lg (n/m) \rfloor} - 1 + 2^{- 1} - 2^{\lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
-%% $$m2^{\lfloor \lg (n/m) \rfloor}\left(2^{\lg (n/m) - \lfloor \lg (n/m) \rfloor} - 1 + 2^{- 1} - 2^{\lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
-
-
-
-%% $$m\left(2^{\lg(n/m)} - 2^{\lfloor \lg (n/m) \rfloor} + 2^{\lfloor \lg (n/m) \rfloor - 1} - 2^{\lfloor \lg n \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
-
-%% which is strictly between $n/4$ and $n/2$.
-%% The same space bound as above, applies: $(1 + o(1)) n (O(1) - \lg \epsilon)$ bits.
+Using a quotient DySECT dictionary, this can be stored in $(1 + o(1))n(\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor + 1) \leq (1+o(1))n(\lg (1/\epsilon) + 2)$ bits of space.
 
 The second structure is present if there are any bitstrings shorter than $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$.
 Those are embedded in a bitset of length $2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1}$ as follows:
@@ -252,6 +229,87 @@ First, the bitset is doubled in size.
 Slot $2i + j$ in the new bitset, where $j < 2$, is set to equal slot $i$ in the old bitset.
 Second, values from the dictionary with empty tails must be inserted into the bitset.
 Finally, the dictionary is rewritten by adding an extra bit to the key portion of each key-value pair, pulled from the value portion.
+
+%% \subsubsection{Slightly smaller . . .}
+
+%% The tail filter implementation tracks, in addition to $m$, $\epsilon$, and the cohort number, two data structures.
+
+%% One structure stores all bitstrings in $F$ that have length greater than or equal to $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor$.
+%% They are stored in a map in which the keys are values from $[2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor}]$ and the values are bitstrings of length up to $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg (m \lg (1/\epsilon)) \rfloor$, embedded in bitstrings of length exactly $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg (m \lg (1/\epsilon)) \rfloor + 1$ as described earlier.
+%% Using a quotient DySECT dictionary, this can be stored in $(1 + o(1))n(\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg (m \lg (1/\epsilon)) \rfloor + 1) \leq (1 + o(1))n(\lg (m/\epsilon) - \lg (m \lg (1/\epsilon)) + 2)  = (1+o(1))n(\lg (1/\epsilon) - \lg \lg (1/\epsilon) + 2)$ bits of space.
+%% %Elias and Fano showed that the constant is at least $1.5$.
+%% Note that $(1+\delta)n(\lg (1/\epsilon) - \lg \lg (1/\epsilon)) \leq n \lg (1/\epsilon)$ when $\delta \leq \frac{\lg \lg (1/\epsilon)}{\lg (1/\epsilon) - \lg \lg (1/\epsilon)}$, Which is true even for $\delta = 0.4$ and $1/\epsilon = 1000$.
+
+%% The second structure is present if there are any bitstrings shorter than $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor$.
+%% Those are embedded in a bitset of length $2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor - 1}$ as follows:
+%% each slot in the bitset is interpreted as a bitstring $s$ of length exactly $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor - 1$, and is set to {\bf true} if and only if there is any bitstring in $F$ that is a prefix of it.
+%% Note that if there is any bitstring $x \in F$ that is a prefix of a bitstring of length exactly $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor - 1$, then $x$ has length at most $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor - 1$.
+%% The size of the bitset is at most $n \lg (1/\epsilon) / 2$.
+
+%% To perform {\bf lookup$(x)$}, both parts of the tail filter are consulted.
+%% In the dictionary part, the first $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor$ bits of $x$ are looked up in the map.
+%% If one or more items in the dictionary has that key, each value is inspected to see if it is a prefix of the next $\lfloor \lg(m/\epsilon) \rfloor - \lfloor \lg (m \lg (1/\epsilon)) \rfloor$ bits of $x$.
+%% If any do, then {\bf lookup} returns {\bf true}.
+%% Otherwise, the bit in the bitset at the location that corresponds to the first $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor - 1$ bits of $x$ is returned.
+
+%% To perform {\bf insert$(x)$} on a structure in which cohort $\lfloor \lg (n/m) \rfloor$ is not full, $x$ is inserted into the dictionary: the key is the first $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m \lg (1/\epsilon)) \rfloor$ bits of $x$ and the value is the next $1 + \lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg (m \lg (1/\epsilon)) \rfloor$ bits.
+%% If the cohort is full, both parts of the tail filter has to be rewritten.
+%% First, the bitset is doubled in size.
+%% Slot $2i + j$ in the new bitset, where $j < 2$, is set to equal slot $i$ in the old bitset.
+%% Second, values from the dictionary with empty tails must be inserted into the bitset.
+%% Finally, the dictionary is rewritten by adding an extra bit to the key portion of each key-value pair, pulled from the value portion.
+
+
+%% \subsubsection{Slightly smaller with Lambert . . .}
+
+
+%% One structure stores all bitstrings in $F$ that have length greater than or equal to $\lfloor \lg (n/m) \rfloor + \lfloor \lg m z \rfloor$.
+
+%% Need $\lg (1/\epsilon) - \lg z = z$.
+%% Aka $\lg (1/\epsilon) = z + \lg z$, aka $1/\epsilon = z2^z$.
+%% We have a way to solve $v = we^w$, so just need to change the form.
+%% $2^z = e^{z \ln 2}$, so $\ln 2 / \epsilon = (\ln 2) ze^{z ln 2}$.
+%% So $z \ln 2 = W_0(\ln 2 / \epsilon)$, or $z = W_0(\ln 2 / \epsilon)/\ln 2$.
+
+%% Estimates: Remember $W_0(x) = \ln x - \ln \ln x + o(1)$
+%% If $1/\epsilon = 256$, $z = 
+
+%% If $z = \lg (1/\epsilon)$, need $z - \lg z = z$, which is closer than $z=1$, in which $\lg (1/\epsilon) = 1$.
+%% In the first, the left side is too large, while in the second, the right hand side is too large.
+%% This hints that the answer is in between.
+%% Try $z = \lg (1/\epsilon) - \lg \lg (1/\epsilon)$.
+%% Then have $\lg (1/\epsilon) - \lg (\lg (1/\epsilon) - \lg \lg (1/\epsilon)) = \lg (1/\epsilon) - \lg \lg (1/\epsilon)$, or $\lg (\lg (1/\epsilon) - \lg \lg (1/\epsilon)) = \lg \lg (1/\epsilon)$.
+
+%% Let $w = \lg (1/\epsilon) - \lg \lg (1/\epsilon)$.
+%% One structure stores all bitstrings in $F$ that have length greater than or equal to $\lfloor \lg (n/m) \rfloor + \lfloor \lg mw \rfloor$.
+%% They are stored in a map in which the keys are values from $[2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg mw \rfloor}]$ and the values are bitstrings of length up to $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg mw \rfloor$, embedded in bitstrings of length exactly $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg mw \rfloor + 1$ as described earlier.
+%% Using a quotient DySECT dictionary, this can be stored in $(1 + o(1))n(\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg mw \rfloor + 1) \leq (1 + o(1))n(\lg (m/\epsilon) - \lg (m \lg (1/\epsilon)) + O(1))  \leq (1 + o(1))n(\lg m -\lg \epsilon - \lg m - \lg \lg (1/\epsilon) + O(1)) \leq (1+o(1))n(\lg (1/\epsilon) - \lg \lg (1/\epsilon)) + O(n)$ bits of space.
+
+
+
+%One structure stores all bitstrings in $[F]$ that have length greater than $\lfloor \lg n \rfloor$ in a map from $[2^{\lfloor \lg (m/\epsilon) \rfloor}]$ to bitstrings of length up to $\lfloor \lg(n/m) \rfloor$, embedded in $[2^{\lfloor \lg(n/m) \rfloor + 1}]$ as described earlier.
+
+%% The map is stored in a quotient DySECT dictionary.
+%% If $ \lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor < \lfloor \lg (m/\epsilon) \rfloor$, then all bitstrings are longer than $\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor$.
+%% In this case, the quotient DySECT dictionary can store the $n$ bitstrings in $(1 + o(1)) n (O(1) + \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor)$ bits of space.
+%% This is also $(1 + o(1)) n (O(1) - \lg \epsilon)$.
+
+%% Otherwise, the number of bitstrings shorter than $\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor + 1$ is $m2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon)\rfloor}$, which is at least $m2^{\lg(n/m) + \lg m -  \lg (m/\epsilon) - 2}= m2^{\lg (n\epsilon/m) - 2} = n\epsilon/4$.
+
+%% Otherwise, the number of bitstrings longer than $\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor$ is
+
+%% $$n - m2^{\lfloor \lg (n/m) \rfloor} + \sum_{j=1 + \lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}^{\lfloor \lg (n/m) \rfloor - 1} m2^{j-1}$$
+%% $$n - m2^{\lfloor \lg (n/m) \rfloor} + m2^{\lfloor \lg (n/m) \rfloor - 1} - m2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}$$
+%% $$m(n/m) - m2^{\lfloor \lg (n/m) \rfloor} + m\left(2^{\lfloor \lg (n/m) \rfloor - 1} - 2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
+%% $$m2^{\lg (n/m)} - m2^{\lfloor \lg (n/m) \rfloor} + m\left(2^{\lfloor \lg (n/m) \rfloor - 1} - 2^{\lfloor \lg(n/m) \rfloor + \lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
+%% $$m2^{\lfloor \lg (n/m) \rfloor}\left(2^{\lg (n/m) - \lfloor \lg (n/m) \rfloor} - 1 + 2^{- 1} - 2^{\lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
+%% $$m2^{\lfloor \lg (n/m) \rfloor}\left(2^{\lg (n/m) - \lfloor \lg (n/m) \rfloor} - 1 + 2^{- 1} - 2^{\lfloor \lg m \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
+
+%% $$m\left(2^{\lg(n/m)} - 2^{\lfloor \lg (n/m) \rfloor} + 2^{\lfloor \lg (n/m) \rfloor - 1} - 2^{\lfloor \lg n \rfloor - \lfloor \lg (m/\epsilon) \rfloor}\right)$$
+
+%% which is strictly between $n/4$ and $n/2$.
+%% The same space bound as above, applies: $(1 + o(1)) n (O(1) - \lg \epsilon)$ bits.
+
 
 %is used to represent all bitstrings of length less than or equal to $\lfloor \lg n \rfloor$.
 %(This is all bitstrings inserted in epochs $0$ through $\lfloor \lg n \rfloor - \lfloor \lg (m / \epsilon) \rfloor$, inclusive)
@@ -290,6 +348,11 @@ Finally, the dictionary is rewritten by adding an extra bit to the key portion o
 %% Careful accounting might indicate their bound is actually as high as $O(n (\lg (1/\epsilon) + \lg \lg |U|))$.
 
 \subsection{Equivalence of the implementation and the abstract semantics}
+
+$F$ and $S$ are said to be ``Equivalent'' when for all $y$, {\bf lookup$(y)$} is true if and only if bitstring in $[F]$ is a prefix of $y$.
+
+{\bf insert$(x, F)$} is equivalent under {\bf lookup} to adding $x$ as a bitstring to $[F]$.
+
 
 \section{Differences from Pagh et al.}
 
