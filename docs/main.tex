@@ -6,6 +6,7 @@
 \usepackage[T1]{fontenc}
 \usepackage[bitstream-charter]{mathdesign}
 \usepackage{cite}
+\emergencystretch 1em
 
 \begin{document}
 \title{Tail Filters}
@@ -80,58 +81,71 @@ The main challenge of this work is to keep all of the following low:
 
 \section{Practical quotienting dictionaries with continual minimal overhead}
 
-[Combination of cuckoo filters, the A-B design of shingle filters or the journal version of Morton filters, and DySECT~\cite{maier2019dynamic}]
+%% [Combination of cuckoo filters, the A-B design of shingle filters or the journal version of Morton filters, and DySECT~\cite{maier2019dynamic}]
 
-In this section, we'll show a practical map data structure that can store a map from $n \geq 128$ random keys that are $k > \lg n$ bits in length to $v$-bit values (excluding the value $0$) in low space.
-The basic structure follows that of dynamic space efficient cuckoo tables~\cite{maier2019dynamic}.
+In this section, we'll show a practical map data structure that can store a map from $n$ random keys that are $k \geq \lg n - 2$ bits in length to $v$-bit values (excluding the value $0$) in low space.
+The basic structure follows that of dynamic space efficient cuckoo tables~\cite{maier2019dynamic}, which shows the space can be as low as $1.03 n (k + v - \lg n + O(1))$ while {\bf lookup} inspects no more than three cache lines.
+In their experiments, {\bf lookup}s take 100ns on average and {\bf insert}s take 1500ns, even when the filter is 98\% full.
 
-We store two directories, each containing $32$ pointers to sub-tables.
-Each sub-table is either ``small'' or ``large''.
-Small sub-tables have $2^{\lceil \lg (1.16 n) \rceil - 7}$ slots, while large sub-tables have twice that.
-There must be at least one ``small'' sub-table.
-In a sub-table of length $l$, the values are of length $k+v-4-\lg l$.
-%In the smaller subtables, the slots store values of length $3 + k + v - \lceil \lg (1.16 n) \rceil$, while in the larger tables they store values with one less bit.
-The total number of slots is kept between $1n$ and $1.16n$.
-This is always possible since increasing a table from large to small adds $2^{\lceil \lg (1.16 n) \rceil - 7} < 2^{\lg (1.16 n) - 6} = 1.16n/64 < 1.16n-n$.
+The central idea is to store not one cuckoo hash table of a certain size, but several sub-tables of varying size.
+The alternate slots of a key may be in distinct sub-tables.
+When the map is near capacity, one of the sub-tables is doubled in size.
+Since this doesn't double the whole table, the size increases by much less than the 100\% increase when doing traditional hash table size doubling.
+The {\bf insert} operation will often succeed only by finding a path of keys to kick that ends in a sub-table recently doubled in size.
+Increasing the number of sub-tables decreases the maximum number of empty slots needed in order to accomodate a series of {\bf insert}s calls; \cite{maier2019dynamic} uses 256 tables, buckets of size 8, and 3 possible buckets per key.
 
-Consider a key-value pair $(x,y)$.
-The following definitions will help to describe the conditions under which $(x,y)$ is said to be present in the dictionary:
 
-Let $x_0$ be the $5$ least significant bits of $x$, and $x_{1+}$ be $\lfloor x / 32 \rfloor$.
-In the first directory, let $l$ be the logarithm (base 2) of the length of sub-table number $x_0$.
-Let $x_1$ be the $l$ least significant bits of $x_{1+}$, and $x_2$ be $\lfloor x_{1+} / 2^l \rfloor$.
-We know that $\lg x_2 < k - l - 5$.
-Let $y_0$ be $y 2^{k - 5 - l} + x_2$.
+%% We store two directories, each containing $32$ pointers to sub-tables.
+%% Each sub-table is either ``small'' or ``large''.
+%% Small sub-tables have $2^{\lceil \lg (1.16 n) \rceil - 7}$ slots, while large sub-tables have twice that.
+%% There must be at least one ``small'' sub-table.
+%% In a sub-table of length $l$, the values are of length $k+v-4-\lg l$.
+%% %In the smaller subtables, the slots store values of length $3 + k + v - \lceil \lg (1.16 n) \rceil$, while in the larger tables they store values with one less bit.
+%% The total number of slots is kept between $1n$ and $1.16n$.
+%% This is always possible since increasing a table from large to small adds $2^{\lceil \lg (1.16 n) \rceil - 7} < 2^{\lg (1.16 n) - 6} = 1.16n/64 < 1.16n-n$.
 
-Let $x' = (x + h(y)) \bmod 2^k$.
-Follow the above pattern to derive $x'_0$, $l'$, $x'_1$, $x'_2$, and $y'_0$.
+%% Consider a key-value pair $(x,y)$.
+%% The following definitions will help to describe the conditions under which $(x,y)$ is said to be present in the dictionary:
 
-The pair $(x,y)$ is said to be present in the dictionary if any of the following are true:
-\begin{itemize}
-\item In the first directory, in table $x_0$, in slot $x_1$, the value is $2y_0$.
-\item In the first directory, in table $x_0$, in slot $(x_1 + 1) \bmod 2^l$, the value is $1 + 2y_0$.
-\item In the second directory, in table $x'_0$, in slot $x'_1$, the value is $2y'_0$.
-\item In the second dictionary, in table $x'_0$, in slot $(x'_1 + 1) \bmod 2^{l'}$, the value is $1 + 2y'_0$.
-\end{itemize}
+%% Let $x_0$ be the $5$ least significant bits of $x$, and $x_{1+}$ be $\lfloor x / 32 \rfloor$.
+%% In the first directory, let $l$ be the logarithm (base 2) of the length of sub-table number $x_0$.
+%% Let $x_1$ be the $l$ least significant bits of $x_{1+}$, and $x_2$ be $\lfloor x_{1+} / 2^l \rfloor$.
+%% We know that $\lg x_2 < k - l - 5$.
+%% Let $y_0$ be $y 2^{k - 5 - l} + x_2$.
 
-The total space usage is $64$ pointers, plus $64$ bits (one for each sub-table to indicate if it is ``small''), plus $1.16 n (3 + k + v - \lceil \lg (1.16 n) \rceil)$ bits.
-The last term is less than $1.16 n (3.8 + k + v - \lg n)$.
-The minimum is $\lg {2^{k}(2^{v}-1) \choose n} \geq n(-1+k+v-\lg n)$ by Elias and Fano.
+%% Let $x' = (x + h(y)) \bmod 2^k$.
+%% Follow the above pattern to derive $x'_0$, $l'$, $x'_1$, $x'_2$, and $y'_0$.
 
-\subsection{Less magic}
+%% The pair $(x,y)$ is said to be present in the dictionary if any of the following are true:
+%% \begin{itemize}
+%% \item In the first directory, in table $x_0$, in slot $x_1$, the value is $2y_0$.
+%% \item In the first directory, in table $x_0$, in slot $(x_1 + 1) \bmod 2^l$, the value is $1 + 2y_0$.
+%% \item In the second directory, in table $x'_0$, in slot $x'_1$, the value is $2y'_0$.
+%% \item In the second dictionary, in table $x'_0$, in slot $(x'_1 + 1) \bmod 2^{l'}$, the value is $1 + 2y'_0$.
+%% \end{itemize}
 
-This construction can be repeated with fewer magic constants:
+%% The total space usage is $64$ pointers, plus $64$ bits (one for each sub-table to indicate if it is ``small''), plus $1.16 n (3 + k + v - \lceil \lg (1.16 n) \rceil)$ bits.
+%% The last term is less than $1.16 n (3.8 + k + v - \lg n)$.
+%% The minimum is $\lg {2^{k}(2^{v}-1) \choose n} \geq n(-1+k+v-\lg n)$ by Elias and Fano.
 
-Let $s > 0$ be an integral number of shingle bits.
-Let $d > 1$ be an integral number of directories.
-Let $w > 0$ be an integral number of ``directory bits''; there are $2^w$ sub-tables in each directory.
+%% \subsection{Less magic}
+
+Let $s \geq 0$ be an integral number of shingle bits, following~\cite{lehman20093}; each slot wil store $s$ bits to indicate its offset, simulating buckets of size $2^s$.
+%Let $d > 1$ be an integral number of directories.
+%Let $w > 0$ be an integral number of ``directory bits''; there are $2^w$ sub-tables in each directory.
 Let $1 < \alpha$ be the maximum number of slots, as a factor of $n$, the number of key-value pairs.
+A low $\alpha$ is desirable, but this is a derived, rather than a specified constant, and is limited by the constraints of the cuckoo hypergraph.
 
-We map from $n \geq d 2^{s+w}$ random keys that are $k > \lg n$ bits in length to $v$-bit values (excluding the value $0$).
+We store $d$ directories, each containing $2^w$ pointers to sub-tables.
+Each sub-table has a size that is a pwer of two, and there are at most two different sub-table sizees present in the directory at one time.
+If there are two different sizes, the dyiffer by a factor of two.
+In a sub-table with $2^l$ slots, the values are of length $k + v - w + s - l$.
+
+We map from $n \geq d 2^{s+w}$ random keys that are $k \geq \lg n - 2$ bits in length to $v$-bit values (excluding the value $0$).
 Each sub-table is either ``small'' or ``large''.
-Small sub-tables have $2^{\lceil \lg (\alpha n / d) \rceil - w - 1}$ slots, while large sub-tables have twice that.
-There must be at least one ``small'' sub-table.
-In a sub-table of length $l$, the values are of length $k + v - w + s - \lg l$.
+%Small sub-tables have $2^{\lceil \lg (\alpha n / d) \rceil - w - 1}$ slots, while large sub-tables have twice that.
+%There must be at least one ``small'' sub-table.
+
 %In the smaller subtables, the slots store values of length $3 + k + v - \lceil \lg (1.32 n) \rceil$, while in the larger tables they store values with one less bit.
 %The total number of slots is kept between $n$ and $\alpha n$.
 %This is always possible since increasing a table from large to small adds $2^{\lceil \lg (1.32 n) \rceil - 7} < 2^{\lg (1.32 n) - 6} = 1.32n/6 = 0.22n$
@@ -148,7 +162,7 @@ Let $y_0$ be $y 2^{k - l - w} + x_2$.
 Let $x^0 = x$, and let $x^i = (x + h_i(y)) \bmod 2^k$ for $0 < i < w$
 Follow the above pattern to derive $x^i_0$, $l^i$, $x^i_1$, $x^i_2$, and $y^i_0$.
 
-The pair $(x,y)$ is said to be present in the dictionary if there exist $0 < i < d$ and $0 < j < 2^s$ such that in directory $i$, in sub-table $x^i_0$, in slot $x^i_1 + j) \bmod 2^{l^i}$, the value if $j + 2^s y^i_0$.
+The pair $(x,y)$ is said to be present in the dictionary if there exist $0 < i < d$ and $0 < j < 2^s$ such that in directory $i$, in sub-table $x^i_0$, in slot $(x^i_1 + j) \bmod 2^{l^i}$, the value is $j + 2^s y^i_0$.
 
 The total space usage is at most $d 2^w$ pointers, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (1 + k + v + s - \lceil \lg (\alpha n / d) \rceil)$ bits.
 
