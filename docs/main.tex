@@ -139,10 +139,10 @@ A low $\alpha$ is desirable, but this is a derived, rather than a specified cons
 We store $d$ directories, each containing $2^w$ pointers to sub-tables.
 Each sub-table has a size that is a power of two, and there are at most two different sub-table sizees present in the directory at one time.
 If there are two different sizes, the differ by a factor of two.
-In a sub-table with $2^l$ slots, the values are of length $k + v - w + s - l$.
+In a sub-table with $2^l$ slots, the values are of length $s + v + \max(0,k - w - l)$.
 
 We map from $n \geq d 2^{s+w}$ random keys that are $k \geq w + l - O(1)$ bits in length to $v$-bit values (excluding the value $0$), where $l$ is the size of the small sub-tables.
-Note that $l \geq \lg n - (2w + 1) \lg d$, since there must be at least $n$ slots.
+Note that $\lg n - (2w + 1) \lg d \leq l \ leq \lg \alpha + \lg n - (2w - 2)\lg d$, since there are at least $n$ slots and at most $\alpha n$ slots.
 %Each sub-table is either ``small'' or ``large''.
 %Small sub-tables have $2^{\lceil \lg (\alpha n / d) \rceil - w - 1}$ slots, while large sub-tables have twice that.
 %There must be at least one ``small'' sub-table.
@@ -170,12 +170,7 @@ Every slot is in the sub-table $x_0$ of the first directory.
   Since $w \geq l + k - O(1)$, $z_0$ has size $O(1)$.
 \end{itemize}
 
-$|y_0|$ in the first case is the right size since $|x_2| = k - w - l$ and $|y| = v$
-
-UHOH: in the second case, $y_0$ has size $v$, when it should have size $v + (k - w - l)$, and the second part is less than zero.
-So it is too big.
-Change the value size to $k + v - w - l + s + O(1)$.
-
+In either case $\lg y_0 \leq v + \max(0, k - w - l)$.
 
 %% For each case, we'll construct a set of slot-value pairs.
 %% The set will have size $O(2^s)$.
@@ -191,7 +186,7 @@ Let $x^i = (x + h_i(y)) \bmod 2^k$ for $0 < i < w$, and derive $x^i_0$, $l_i$, $
 The pair $(x,y)$ is said to be present in the dictionary if there exists $0 < i < d$, $0 < j < 2^s$, and $z \in z_i$ such that in directory $i$, in sub-table $x^i_0$, in slot $(z + j) \bmod 2^{l_i}$, the value is $j + 2^s y_i$.
 The total size of slots to check is $O(d 2^s)$.
 
-The total space usage is at most $d 2^w$ pointers, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (k + v - w + s - l)$ bits, where $l$
+The total space usage is at most $d 2^w$ pointers, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (s + v + \max(0, k - w - l))$ bits, where $l$ is the size of the small sub-tables.
 
 
 %% if that subtable is small, then slot $\lfloor x / 32 \rfloor \bmod 2^{\lfloor \lg n \rfloor - 6}$ has value $\lfloor x / 2^{\lfloor \lg n \rfloor - 1} \rfloor + *y$ or slot $(\lfloor x / 32 \rfloor + 1) \bmod 2^{k-6}$ has value $\lfloor x / 2^{k-1} \rfloor + 2 + 4*y$.
