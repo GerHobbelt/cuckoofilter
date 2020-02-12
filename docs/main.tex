@@ -128,27 +128,21 @@ The capacity of $m[p][q]$ is denoted ``$|m[p][q]|$''.
 
 Let $x_0 = x$ and $x_i = (x + h_i(y)) \bmod 2^k$ for $0 < i < d$.
 
-Let ``$x_i[p,q)$'' denote the bits in $x$ at locations $p, \dots, q-1$, numbering from zero, i.e. $\lfloor (x_i - \lfloor x_i/2^q \rfloor 2^q)/2^p \rfloor$
+For any non-negative integer $b$, let ``$b[p,q)$'' denote the bits in $b$ at locations $p, \dots, q-1$, numbering from zero, i.e. $\lfloor (b - \lfloor b/2^q \rfloor 2^q)/2^p \rfloor$
 Denote $m[i][x_i[k-w,k)]$ by $t_i$.
-We now consider two separate cases, depending on the value of $k - w - \lg |t_i|$.
-From this, we will construct a multi-set $z_i$ of slots in $t_i$ and a single value $y_i$.
-$z_i$ will have size $2^{\max(0, w + \lg |t_i| - k)}$
+Let $z_i = \{x_i[k - w - \lg |t_i|, k - w) 2^{\max(0,w + \lg |t_i| - k)} \}$ be a slot in $t_i$. % and let $y_i = y + x_i[0, \max(0,k - w - \lg |t_i|)) 2^v$.
+%The bitlength of $y_i$ is $v + \max(0, k - w - \lg |t_i|)$.
 
-\begin{itemize}
-\item If $k - w - \lg |t_i| \geq 0$, then $z_i = \{x_i[k - w - \lg |t_i|, k - w) \}$ and $y_i = y 2^{k - w - \lg |t_i|} + x_i[0, k - w - \lg |t_i|)$.
-\item If $k - w - \lg |t_i| < 0$, then $z_i = \{x_i[k - w - \lg |t_i|, k - w) 2^{w + \lg |t_i| - k} + j : 0 \leq j < 2^{w + \lg |t_i| - k}\}$ and $y_i = y$.
-%  Since $w \geq l + k - O(1)$, $z_0$ has size $O(1)$.
-\end{itemize}
+The values associated with $x_i$ are derived from $r_{i,j} = t_i[(z_i  + j) \bmod |t_i|]$ for $0 \leq j < 2^s$.
+When $k \geq w + \lg |t_i|$, the values associated with $x_i$ are derived from the values in $r_{i,j}$ as follows:
 
+$$y_i = \left\{r_{i,j}[s, s+v) : r_{i,j}[0,s) = j \land r_{i,j}[s+v,s + v + \max(0,k - w - \lg |t_i|)) = x_i[0, \max(0,k - w - \lg |t_i|))\right\}.$$
 
-%The following definitions will help to describe the conditions under which $(x,y)$ is said to be present in the dictionary:
-%% Let $x_0$ be the $w$ least significant bits of $x$, and $x_{1+}$ be $\lfloor x / 2^w \rfloor$.
-%% In the first directory, let $l$ be the integer such that sub-table number $x_0$ has $2^l$ slots.
-%% Let $x_2$ be $\lfloor x_{1+} / 2^l \rfloor$ and let $x_1$ be $x_{1+} - x_2$.
+%% When $k < w + \lg |t_i|$,
 
-In either case $y_i \leq 2^{v + \max(0, k - w - \lg |t_i|)}$.
+%% $$y_i = \{r_{i,j}[s, s+v) : r_{i,j}[0,s) = j \}.$$
 
-The values associated with the key $x$ are 
+The values associates with $x$ are $\cup_i y_i$, of which there are at most $d2^s$.
 
 %% For each case, we'll construct a set of slot-value pairs.
 %% The set will have size $O(2^s)$.
@@ -161,10 +155,10 @@ The values associated with the key $x$ are
 %Let $x^i = (x + h_i(y)) \bmod 2^k$ for $0 < i < w$, and derive $x^i_0$, $l_i$, $z_i$, and $y_i$ from $x^i$.
 %Follow the above pattern to derive $z^i$, $l^i$, $x^i_1$, $x^i_2$, and $y^i_0$.
 
-The pair $(x, y)$ is said to be present in the dictionary if there exists $0 < i < d$, $0 < j < 2^s$, and $z \in z_i$ such that in directory $i$, in sub-table $x^i_0$, in slot $(z + j) \bmod 2^{l_i}$, the value is $j + 2^s y_i$.
-The total size of slots to check is $d 2^{s + \max(0, w + l - k)}$.
+%% The pair $(x, y)$ is said to be present in the dictionary if there exists $0 < i < d$, $0 < j < 2^s$, and $z \in z_i$ such that in directory $i$, in sub-table $x^i_0$, in slot $(z + j) \bmod 2^{l_i}$, the value is $j + 2^s y_i$.
+%% The total size of slots to check is $d 2^{s + \max(0, w + l - k)}$.
 
-The total space usage is at most $d 2^w$ pointers, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (s + v + \max(0, k - w - l))$ bits, where $l$ is the size of the small sub-tables.
+The total space usage is at most $d 2^w$ pointers to the sub-tables, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (s + v + \max(0, k - w - l))$ bits, where $l$ is the size of the small sub-tables.
 This is at most $\alpha n (s + v + k - \lg n + \lg d + 1)$.
 
 %% if that subtable is small, then slot $\lfloor x / 32 \rfloor \bmod 2^{\lfloor \lg n \rfloor - 6}$ has value $\lfloor x / 2^{\lfloor \lg n \rfloor - 1} \rfloor + *y$ or slot $(\lfloor x / 32 \rfloor + 1) \bmod 2^{k-6}$ has value $\lfloor x / 2^{k-1} \rfloor + 2 + 4*y$.
