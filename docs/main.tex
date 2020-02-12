@@ -81,54 +81,17 @@ The main challenge of this work is to keep all of the following low:
 
 \section{Practical quotienting dictionaries with continual minimal overhead}
 
-%% [Combination of cuckoo filters, the A-B design of shingle filters or the journal version of Morton filters, and DySECT~\cite{maier2019dynamic}]
+In this section, we'll show a practical data structure that can store a multi-map from bitstrings to bitstrings.
+The basic structure follows that of dynamic space efficient cuckoo tables~\cite{maier2019dynamic}, which shows the space can be as low as 3\% more than the minimum while {\bf lookup} inspects no more than three cache lines.
+In their experiments, {\bf lookup}s take 100ns on average and {\bf insert}s take 300ns, when the filter is 90\% full.
 
-In this section, we'll show a practical map data structure that can store a multi-map from bitstrings to bitstrings.
-The basic structure follows that of dynamic space efficient cuckoo tables~\cite{maier2019dynamic}, which shows the space can be as low as 3\% more than the minimum while {\bf lookup} inspects no more than three cache lines.\footnote{In their experiments, {\bf lookup}s take 100ns on average and {\bf insert}s take 1500ns, even when the filter is 98\% full.}
-
-The central idea of~\cite{maier2019dynamic} is to store not one cuckoo hash table of a certain size, but several sub-tables of varying size.
-The alternate slots of a key may be in distinct sub-tables.
-When the map is near capacity, one of the sub-tables is doubled in capacity.
+The central idea of~\cite{maier2019dynamic} is to store not one cuckoo hash table of a certain capacity, but several sub-tables of varying capacity.
+The candidate slots of a key may be in distinct sub-tables.
+When the map is nearly full, one of the sub-tables is doubled in capacity.
 Since this doesn't double the space usage of whole table, the space usage increases by much less than the 100\% increase when doing traditional hash table size doubling.
 The {\bf insert} operation will often succeed only by finding a path of keys to kick that ends in a sub-table recently doubled in capacity.
 %Increasing the number of sub-tables decreases the maximum number of empty slots needed in order to accomodate a series of {\bf insert}s calls
 %; \cite{maier2019dynamic} uses 256 tables, buckets of size 8, and 3 possible buckets per key.
-
-
-%% We store two directories, each containing $32$ pointers to sub-tables.
-%% Each sub-table is either ``small'' or ``large''.
-%% Small sub-tables have $2^{\lceil \lg (1.16 n) \rceil - 7}$ slots, while large sub-tables have twice that.
-%% There must be at least one ``small'' sub-table.
-%% In a sub-table of length $l$, the values are of length $k+v-4-\lg l$.
-%% %In the smaller subtables, the slots store values of length $3 + k + v - \lceil \lg (1.16 n) \rceil$, while in the larger tables they store values with one less bit.
-%% The total number of slots is kept between $1n$ and $1.16n$.
-%% This is always possible since increasing a table from large to small adds $2^{\lceil \lg (1.16 n) \rceil - 7} < 2^{\lg (1.16 n) - 6} = 1.16n/64 < 1.16n-n$.
-
-%% Consider a key-value pair $(x,y)$.
-%% The following definitions will help to describe the conditions under which $(x,y)$ is said to be present in the dictionary:
-
-%% Let $x_0$ be the $5$ least significant bits of $x$, and $x_{1+}$ be $\lfloor x / 32 \rfloor$.
-%% In the first directory, let $l$ be the logarithm (base 2) of the length of sub-table number $x_0$.
-%% Let $x_1$ be the $l$ least significant bits of $x_{1+}$, and $x_2$ be $\lfloor x_{1+} / 2^l \rfloor$.
-%% We know that $\lg x_2 < k - l - 5$.
-%% Let $y_0$ be $y 2^{k - 5 - l} + x_2$.
-
-%% Let $x' = (x + h(y)) \bmod 2^k$.
-%% Follow the above pattern to derive $x'_0$, $l'$, $x'_1$, $x'_2$, and $y'_0$.
-
-%% The pair $(x,y)$ is said to be present in the dictionary if any of the following are true:
-%% \begin{itemize}
-%% \item In the first directory, in table $x_0$, in slot $x_1$, the value is $2y_0$.
-%% \item In the first directory, in table $x_0$, in slot $(x_1 + 1) \bmod 2^l$, the value is $1 + 2y_0$.
-%% \item In the second directory, in table $x'_0$, in slot $x'_1$, the value is $2y'_0$.
-%% \item In the second dictionary, in table $x'_0$, in slot $(x'_1 + 1) \bmod 2^{l'}$, the value is $1 + 2y'_0$.
-%% \end{itemize}
-
-%% The total space usage is $64$ pointers, plus $64$ bits (one for each sub-table to indicate if it is ``small''), plus $1.16 n (3 + k + v - \lceil \lg (1.16 n) \rceil)$ bits.
-%% The last term is less than $1.16 n (3.8 + k + v - \lg n)$.
-%% The minimum is $\lg {2^{k}(2^{v}-1) \choose n} \geq n(-1+k+v-\lg n)$ by Elias and Fano.
-
-%% \subsection{Less magic}
 
 Let $s \geq 0$ be an integral number of shingle bits, following~\cite{lehman20093}; each slot wil store $s$ bits to indicate its offset, simulating buckets of size $2^s$.
 %Let $d > 1$ be an integral number of directories.
@@ -147,7 +110,7 @@ Since the capacity is also between $n$ and $\alpha n$, we have $\lg (n/d) - 1 \l
 
 %Since the the number of slots is between $n$ and $\alpha n$, since
 
-We map from $n \geq d 2^{s+w}$ random keys that are $k$ bits in length to $v$-bit values (excluding the value $0$).
+We map from $n$ random keys that are $k$ bits in length to $v$-bit values (excluding the value $0$).
 The value $0$ is used to indicate an empty slot.
 %Note that $\lg n - (2w + 1) \lg d \leq l \leq \lg \alpha + \lg n - (2w - 2)\lg d$, since there are at least $n$ slots and at most $\alpha n$ slots.
 %Each sub-table is either ``small'' or ``large''.
@@ -158,27 +121,34 @@ The value $0$ is used to indicate an empty slot.
 %The total number of slots is kept between $n$ and $\alpha n$.
 %This is always possible since increasing a table from large to small adds $2^{\lceil \lg (1.32 n) \rceil - 7} < 2^{\lg (1.32 n) - 6} = 1.32n/6 = 0.22n$
 
-Let $(x,y)$ be a key-value pair.
+Let $(x, y)$ be a key-value pair.
 We will state under what conditions $(x,y)$ is said to be a member of the set.
-%The following definitions will help to describe the conditions under which $(x,y)$ is said to be present in the dictionary:
-Let $x_0$ be the $w$ least significant bits of $x$, and $x_{1+}$ be $\lfloor x / 2^w \rfloor$.
-In the first directory, let $l$ be the integer such that sub-table number $x_0$ has $2^l$ slots.
-Let $x_2$ be $\lfloor x_{1+} / 2^l \rfloor$ and let $x_1$ be $x_{1+} - x_2$.
+The notation ``$m[p]$'' will denote the $p$th directory, ``$m[p][q]$'' the $q$th sub-table of that directory, and ``$m[p][q][r]$'' the $r$th slot of that sub-table.
+The capacity of $m[p][q]$ is denoted ``$|m[p][q]|$''.
 
-We now consider two separate cases, depending on the value of $k - w - l$.
-From this, we will construct a multi-set $z_0$ of slots and a single value $y_0$.
-$z_0$ will have size $2^{\max(0, w + l - k)}$
-Every slot is in the sub-table $x_0$ of the first directory.
+Let $x_0 = x$ and $x_i = (x + h_i(y)) \bmod 2^k$ for $0 < i < d$.
+
+Let ``$x_i[p,q)$'' denote the bits in $x$ at locations $p, \dots, q-1$, numbering from zero, i.e. $\lfloor (x_i - \lfloor x_i/2^q \rfloor 2^q)/2^p \rfloor$
+Denote $m[i][x_i[k-w,k)]$ by $t_i$.
+We now consider two separate cases, depending on the value of $k - w - \lg |t_i|$.
+From this, we will construct a multi-set $z_i$ of slots in $t_i$ and a single value $y_i$.
+$z_i$ will have size $2^{\max(0, w + \lg |t_i| - k)}$
 
 \begin{itemize}
-%\item If $k - w - l = 0$, then $z = \{x_1\}$ and $y_0 = y$.
-\item If $k - w - l \geq 0$, then $z_0 = \{x_1\}$ and $y_0 = y 2^{k - l - w} + x_2$.
-\item If $k - w - l < 0$, then $z_0 = \{x_1 2^{w + l - k} + i : 0 \leq i < 2^{w + l - k}\}$ and $y_0 = y$.
-  Since $w \geq l + k - O(1)$, $z_0$ has size $O(1)$.
+\item If $k - w - \lg |t_i| \geq 0$, then $z_i = \{x_i[k - w - \lg |t_i|, k - w) \}$ and $y_i = y 2^{k - w - \lg |t_i|} + x_i[0, k - w - \lg |t_i|)$.
+\item If $k - w - \lg |t_i| < 0$, then $z_i = \{x_i[k - w - \lg |t_i|, k - w) 2^{w + \lg |t_i| - k} + j : 0 \leq j < 2^{w + \lg |t_i| - k}\}$ and $y_i = y$.
+%  Since $w \geq l + k - O(1)$, $z_0$ has size $O(1)$.
 \end{itemize}
 
-In either case $\lg y_0 \leq v + \max(0, k - w - l)$.
 
+%The following definitions will help to describe the conditions under which $(x,y)$ is said to be present in the dictionary:
+%% Let $x_0$ be the $w$ least significant bits of $x$, and $x_{1+}$ be $\lfloor x / 2^w \rfloor$.
+%% In the first directory, let $l$ be the integer such that sub-table number $x_0$ has $2^l$ slots.
+%% Let $x_2$ be $\lfloor x_{1+} / 2^l \rfloor$ and let $x_1$ be $x_{1+} - x_2$.
+
+In either case $y_i \leq 2^{v + \max(0, k - w - \lg |t_i|)}$.
+
+The values associated with the key $x$ are 
 
 %% For each case, we'll construct a set of slot-value pairs.
 %% The set will have size $O(2^s)$.
@@ -188,10 +158,10 @@ In either case $\lg y_0 \leq v + \max(0, k - w - l)$.
 %% Since $x$ has length $k$, we know that $\lg x_2 < k - l - w$.
 %% Let $y_0$ be $y 2^{k - l - w} + x_2$.
 
-Let $x^i = (x + h_i(y)) \bmod 2^k$ for $0 < i < w$, and derive $x^i_0$, $l_i$, $z_i$, and $y_i$ from $x^i$.
+%Let $x^i = (x + h_i(y)) \bmod 2^k$ for $0 < i < w$, and derive $x^i_0$, $l_i$, $z_i$, and $y_i$ from $x^i$.
 %Follow the above pattern to derive $z^i$, $l^i$, $x^i_1$, $x^i_2$, and $y^i_0$.
 
-The pair $(x,y)$ is said to be present in the dictionary if there exists $0 < i < d$, $0 < j < 2^s$, and $z \in z_i$ such that in directory $i$, in sub-table $x^i_0$, in slot $(z + j) \bmod 2^{l_i}$, the value is $j + 2^s y_i$.
+The pair $(x, y)$ is said to be present in the dictionary if there exists $0 < i < d$, $0 < j < 2^s$, and $z \in z_i$ such that in directory $i$, in sub-table $x^i_0$, in slot $(z + j) \bmod 2^{l_i}$, the value is $j + 2^s y_i$.
 The total size of slots to check is $d 2^{s + \max(0, w + l - k)}$.
 
 The total space usage is at most $d 2^w$ pointers, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (s + v + \max(0, k - w - l))$ bits, where $l$ is the size of the small sub-tables.
