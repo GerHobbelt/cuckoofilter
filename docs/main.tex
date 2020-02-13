@@ -6,6 +6,7 @@
 %\usepackage{amsfonts}
 %\usepackage{amssymb}
 \usepackage{cite}
+\usepackage{amsmath}
 \emergencystretch 1em
 
 \begin{document}
@@ -43,6 +44,8 @@ Similarly, ``$[2^n]$'' will sometimes denote the set of bitstrings of length $n$
 The set of bitstrings of length less than $n$,  $\bigcup_{i < n} [2^i]$, is isomorphic to $[2^n]$ via $(m \in [2^i]) \mapsto 2^i + m$.
 This representation is not surjective due to a single value of $[2^n]$ that has no pre-image: $0$.
 This value can be repurposed so that any value in $[2^n]$ can be thought of either as being absent or a bitstring of length less than $n$.
+
+For any non-negative integer $b$, let ``$b[p,q)$'' denote the bits in $b$ at locations $p, \dots, q-1$, numbering from zero, i.e. $\lfloor (b - \lfloor b/2^q \rfloor 2^q)/2^p \rfloor$
 
 Each AMQ $F$ represents a subset of $U$.
 The subset of $U$ represented by a structure $F$ is denoted $[F]$.
@@ -88,14 +91,15 @@ In their experiments, {\bf lookup}s take 100ns on average and {\bf insert}s take
 The central idea of~\cite{maier2019dynamic} is to store not one cuckoo hash table of a certain capacity, but several sub-tables of varying capacity.
 The candidate slots of a key may be in distinct sub-tables.
 When the map is nearly full, one of the sub-tables is doubled in capacity.
-Since this doesn't double the space usage of whole table, the space usage increases by much less than the 100\% increase when doing traditional hash table size doubling.
+Since this doesn't double the space usage of whole table, the space usage increases by much less than the 100\% increase when doing traditional hash table capacity doubling.
 The {\bf insert} operation will often succeed only by finding a path of keys to kick that ends in a sub-table recently doubled in capacity.
 %Increasing the number of sub-tables decreases the maximum number of empty slots needed in order to accomodate a series of {\bf insert}s calls
 %; \cite{maier2019dynamic} uses 256 tables, buckets of size 8, and 3 possible buckets per key.
 
-Let $s \geq 0$ be an integral number of shingle bits, following~\cite{lehman20093}; each slot wil store $s$ bits to indicate its offset, simulating buckets of size $2^s$.
-%Let $d > 1$ be an integral number of directories.
-%Let $w > 0$ be an integral number of ``directory bits''; there are $2^w$ sub-tables in each directory.
+We map from $n$ random keys that are $k$ bits in length to $v$-bit values (excluding the value $0$).
+The value $0$ is used to indicate an empty slot.
+
+Let $s \geq 0$ be an integral number of shingle bits, following~\cite{lehman20093}; each slot will store $s$ bits to indicate its offset, creating overlapping buckets of capacity $2^s$.
 Let $\alpha > 1$ be the maximum number of slots, as a factor of $n$, the number of key-value pairs.
 A low $\alpha$ is desirable, but this is a derived, rather than a specified constant, and is limited by the constraints of the cuckoo hypergraph.
 
@@ -107,69 +111,43 @@ In a sub-table with $2^l$ slots, the slots have bitlength $s + v + \max(0,k - w 
 Let $2^l$ be the smaller sub-table capacity.
 Then the capacity of the whole multi-map is between $2^{l+w}d$ (when all of the tables have the same capacity) and $2^l + 2^{l+1}(d 2^w - 1)$ (when all other tables have larger capacity).
 Since the capacity is also between $n$ and $\alpha n$, we have $\lg (n/d) - 1 \leq l + w \leq \lg(n/d) + \lg \alpha$.
+When $l$ is the larger sub-table capacity, we have $\lg (n/d) \leq l + w \leq \lg (n/d) + \lg \alpha + 1$.
 
-%Since the the number of slots is between $n$ and $\alpha n$, since
-
-We map from $n$ random keys that are $k$ bits in length to $v$-bit values (excluding the value $0$).
-The value $0$ is used to indicate an empty slot.
-%Note that $\lg n - (2w + 1) \lg d \leq l \leq \lg \alpha + \lg n - (2w - 2)\lg d$, since there are at least $n$ slots and at most $\alpha n$ slots.
-%Each sub-table is either ``small'' or ``large''.
-%Small sub-tables have $2^{\lceil \lg (\alpha n / d) \rceil - w - 1}$ slots, while large sub-tables have twice that.
-%There must be at least one ``small'' sub-table.
-
-%In the smaller subtables, the slots store values of length $3 + k + v - \lceil \lg (1.32 n) \rceil$, while in the larger tables they store values with one less bit.
-%The total number of slots is kept between $n$ and $\alpha n$.
-%This is always possible since increasing a table from large to small adds $2^{\lceil \lg (1.32 n) \rceil - 7} < 2^{\lg (1.32 n) - 6} = 1.32n/6 = 0.22n$
-
-Let $(x, y)$ be a key-value pair.
-We will state under what conditions $(x,y)$ is said to be a member of the set.
+Let $x$ be a key.
+We will describe how to find the values associated with $x$.
 The notation ``$m[p]$'' will denote the $p$th directory, ``$m[p][q]$'' the $q$th sub-table of that directory, and ``$m[p][q][r]$'' the $r$th slot of that sub-table.
 The capacity of $m[p][q]$ is denoted ``$|m[p][q]|$''.
 
-Let $x_0 = x$ and $x_i = (x + h_i(y)) \bmod 2^k$ for $0 < i < d$.
+For all $0 < i < d$, let $h_i$ be a hash function and a permutation on $[2^k]$.
+Let $x_0 = x$ and $x_i = h_i(x)$.
 
-For any non-negative integer $b$, let ``$b[p,q)$'' denote the bits in $b$ at locations $p, \dots, q-1$, numbering from zero, i.e. $\lfloor (b - \lfloor b/2^q \rfloor 2^q)/2^p \rfloor$
 Denote $m[i][x_i[k-w,k)]$ by $t_i$.
-Let $z_i = \{x_i[k - w - \lg |t_i|, k - w) 2^{\max(0,w + \lg |t_i| - k)} \}$ be a slot in $t_i$. % and let $y_i = y + x_i[0, \max(0,k - w - \lg |t_i|)) 2^v$.
-%The bitlength of $y_i$ is $v + \max(0, k - w - \lg |t_i|)$.
+Let $z_i = \{x_i[k - w - \lg |t_i|, k - w) 2^{\max(0,w + \lg |t_i| - k)} + j : j < 2^{\max(0,w + \lg |t_i| - k)}\}$ be a set of slots in $t_i$.
 
-The values associated with $x_i$ are derived from $r_{i,j} = t_i[(z_i  + j) \bmod |t_i|]$ for $0 \leq j < 2^s$.
-When $k \geq w + \lg |t_i|$, the values associated with $x_i$ are derived from the values in $r_{i,j}$ as follows:
+The values associated with $x_i$ are derived from $r_{i,j} = \{t_i[(z  + j) \bmod |t_i|] : z \in z_i\}$ for $0 \leq j < 2^s$.
+The values associated with $x_i$ are derived from the values in $r_{i,j}$ as follows:
 
-$$y_i = \left\{r_{i,j}[s, s+v) : r_{i,j}[0,s) = j \land r_{i,j}[s+v,s + v + \max(0,k - w - \lg |t_i|)) = x_i[0, \max(0,k - w - \lg |t_i|))\right\}.$$
+\begin{displaymath}
+  \begin{array}{llll}
+    y_i = \{r[s, s+v) & : & r \in r_{i,j} & \qquad \\
+      &    \land & r[0,s) = j & \\
+        &  \land & r[s+v,s + v + \max(0,k - w - \lg |t_i|)) = x_i[0, \max(0,k - w - \lg |t_i|))\} &
+  \end{array}
+\end{displaymath}
 
-%% When $k < w + \lg |t_i|$,
+The values associates with $x$ are $\cup_i y_i$, of which there are at most $d2^{s + \max(0,w + \lg |t_i| - k)}$, which is at most  $d2^{s + \max(0,\lg(n/d) + \lg \alpha + 1 - k)}$
 
-%% $$y_i = \{r_{i,j}[s, s+v) : r_{i,j}[0,s) = j \}.$$
-
-The values associates with $x$ are $\cup_i y_i$, of which there are at most $d2^s$.
-
-%% For each case, we'll construct a set of slot-value pairs.
-%% The set will have size $O(2^s)$.
-%% $(x,y)$ is a member of the multi-map when there is a slot-value pair $(p,q)$ such that slot $p$ contains value $q$.
-
-%% Since $k \geq w + l - O(1)$, $x_1$
-%% Since $x$ has length $k$, we know that $\lg x_2 < k - l - w$.
-%% Let $y_0$ be $y 2^{k - l - w} + x_2$.
-
-%Let $x^i = (x + h_i(y)) \bmod 2^k$ for $0 < i < w$, and derive $x^i_0$, $l_i$, $z_i$, and $y_i$ from $x^i$.
-%Follow the above pattern to derive $z^i$, $l^i$, $x^i_1$, $x^i_2$, and $y^i_0$.
-
-%% The pair $(x, y)$ is said to be present in the dictionary if there exists $0 < i < d$, $0 < j < 2^s$, and $z \in z_i$ such that in directory $i$, in sub-table $x^i_0$, in slot $(z + j) \bmod 2^{l_i}$, the value is $j + 2^s y_i$.
-%% The total size of slots to check is $d 2^{s + \max(0, w + l - k)}$.
-
-The total space usage is at most $d 2^w$ pointers to the sub-tables, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\alpha n (s + v + \max(0, k - w - l))$ bits, where $l$ is the size of the small sub-tables.
+The total space usage for multi-map data includes the slots plus at most $d 2^w$ pointers to the sub-tables, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\lg l \leq \lg (\lg \alpha + \lg (N/d))$ bits to store the size of the small sub-tables, where $2^l$ is the capacity of the ``small'' subtables and $N$ is the largest number of keys the multi-map will ever contain.
+The slots themselves occupy $\alpha n (s + v + \max(0, k - w - l))$ bits, where $2^l$ is the capacity of the small sub-tables.
 This is at most $\alpha n (s + v + k - \lg n + \lg d + 1)$.
 
-%% if that subtable is small, then slot $\lfloor x / 32 \rfloor \bmod 2^{\lfloor \lg n \rfloor - 6}$ has value $\lfloor x / 2^{\lfloor \lg n \rfloor - 1} \rfloor + *y$ or slot $(\lfloor x / 32 \rfloor + 1) \bmod 2^{k-6}$ has value $\lfloor x / 2^{k-1} \rfloor + 2 + 4*y$.
-%% if that subtable is large, then slot $\lfloor x / 32 \rfloor$ has value $2*y$ or slot $(\lfloor x / 32 \rfloor + 1) \bmod 2^{k-5}$ has value $1 + 2*y$.
-
-
+The number of empty slots, and thus $\alpha$, can be reduced by increasing $s$ and $d$, but increasing those also increases the number of bits used per slot.
+Larger $s$ and $d$ also decrease the cost of {\bf insert} and increase the cost of {\bf lookup}.
 
 
 \subsection{Applications}
 
-Dynamic Bloomier filters, \cite{DBLP:journals/corr/abs-cs-0502032}. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}
+Dynamic Bloomier filters, \cite{DBLP:journals/corr/abs-cs-0502032}. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}.
 
 \section{The tail filter}
 
