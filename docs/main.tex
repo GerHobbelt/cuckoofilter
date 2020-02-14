@@ -7,6 +7,7 @@
 %\usepackage{amssymb}
 \usepackage{cite}
 \usepackage{amsmath}
+\usepackage{hyperref}
 \emergencystretch 1em
 
 \begin{document}
@@ -86,7 +87,7 @@ The main challenge of this work is to keep all of the following low:
 
 In this section, we'll show a practical data structure that can store a multi-map from bitstrings to bitstrings.
 The basic structure follows that of dynamic space efficient cuckoo tables~\cite{maier2019dynamic}, which shows the space can be as low as 3\% more than the minimum while {\bf lookup} inspects no more than three cache lines.
-In their experiments, {\bf lookup}s take 100ns on average and {\bf insert}s take 300ns, when the filter is 90\% full.
+In their experiments, {\bf lookup}s take 100 nanoseconds on average and {\bf insert}s take 300 nanoseconds, when the filter is 90\% full.
 
 The central idea of~\cite{maier2019dynamic} is to store not one cuckoo hash table of a certain capacity, but several sub-tables of varying capacity.
 The candidate slots of a key may be in distinct sub-tables.
@@ -137,7 +138,7 @@ The values associated with $x_i$ are derived from the values in $r_{i,j}$ as fol
 
 The values associates with $x$ are $\cup_i y_i$, of which there are at most $d2^{s + \max(0,w + \lg |t_i| - k)}$, which is at most  $d2^{s + \max(0,\lg(n/d) + \lg \alpha + 1 - k)}$
 
-The total space usage for multi-map data includes the slots plus at most $d 2^w$ pointers to the sub-tables, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\lg l \leq \lg (\lg \alpha + \lg (N/d))$ bits to store the size of the small sub-tables, where $2^l$ is the capacity of the ``small'' subtables and $N$ is the largest number of keys the multi-map will ever contain.
+The total space usage for multi-map data includes the slots plus at most $d 2^w$ pointers to the sub-tables, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\lg l \leq \lg (\lg \alpha + \lg (N/d))$ bits to store the size of the small sub-tables, where $2^l$ is the capacity of the ``small'' sub-tables and $N$ is the largest number of keys the multi-map will ever contain.
 The slots themselves occupy $\alpha n (s + v + \max(0, k - w - l))$ bits, where $2^l$ is the capacity of the small sub-tables.
 This is at most $\alpha n (s + v + k - \lg n + \lg d + 1)$.
 
@@ -147,7 +148,7 @@ Larger $s$ and $d$ also decrease the cost of {\bf insert} and increase the cost 
 
 \subsection{Applications}
 
-Dynamic Bloomier filters, \cite{DBLP:journals/corr/abs-cs-0502032}. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}.
+[TODO: write about Dynamic Bloomier filters, \cite{DBLP:journals/corr/abs-cs-0502032}. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}. Also \url{https://github.com/sparsehash}.]
 
 \section{The tail filter}
 
@@ -192,7 +193,8 @@ The tail filter implementation tracks, in addition to $m$, $\epsilon$, and the c
 
 One structure stores all bitstrings in $F$ that have length greater than or equal to $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$.
 They are stored in a map in which the keys are values from $[2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor}]$ and the values are bitstrings of length up to $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor$, embedded in bitstrings of length exactly $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor + 1$ as described earlier.
-Using a quotient DySECT dictionary, this can be stored in $(1 + o(1))n(\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor + 1) \leq (1+o(1))n(\lg (1/\epsilon) + 2)$ bits of space.
+Using a quotient DySECT dictionary, this can be stored in at most $\alpha n (\lg (1/\epsilon) + O(1))$ bits of space, where $\alpha$ and the hidden constant are inversely proportional.
+
 
 The second structure is present if there are any bitstrings shorter than $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$.
 Those are embedded in a bitset of length $2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1}$ as follows:
@@ -214,6 +216,8 @@ Finally, the dictionary is rewritten by adding an extra bit to the key portion o
 
 \subsection{Equivalence of the implementation and the abstract semantics}
 
+[TODO: this whole section
+  
 We need three facts:
 
 After a call to {\bf insert$(x)$}, {\bf lookup$(x)$} returns {\bf true}.
@@ -225,21 +229,23 @@ Adding a value to the dictionary increases the fpp by $2^{-\lfloor \lg (n/m) \rf
 
 $F$ and $S$ are said to be ``Equivalent'' when for all $y$, {\bf lookup$(y)$} is true if and only if bitstring in $[F]$ is a prefix of $y$.
 
-{\bf insert$(x, F)$} is equivalent under {\bf lookup} to adding $x$ as a bitstring to $[F]$.
+{\bf insert$(x, F)$} is equivalent under {\bf lookup} to adding $x$ as a bitstring to $[F]$.]
 
 \section{Differences from Pagh et al.}
+
+[TODO: this whole section
 
 Doesn't need to double the space when full.
 
 An asymptotically reduced upper bound on the space.
 
-Now oblivious: don't need to know maximum filter size ahead of time.
+Now oblivious: don't need to know maximum filter size ahead of time.]
 
 \bibliography{main}{}
 \bibliographystyle{alpha}
 \end{document}
 
 %%  LocalWords:  AMQ lookup bitstring bitstrings fpp AMQ's pre DySECT
-%%  LocalWords:  quotienting Pagh et al bitset wlog Bloomier Raman
+%%  LocalWords:  quotienting Pagh et al bitset wlog Bloomier Raman th
 %%  LocalWords:  Rao Dictionariis Dynamicis Pauco Spatio Utentibus
-%%  LocalWords:  Fano
+%%  LocalWords:  Fano multi bitlength llll TODO
