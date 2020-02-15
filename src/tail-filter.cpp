@@ -5,7 +5,7 @@
 using namespace std;
 
 int main() {
-  QuotientDysect mm(55, 0, 2, 5, 1);
+  QuotientDysect mm(6, 6, 2, 5, 1);
   cout << mm.SpaceUsed() << endl
        << mm.Capacity() << endl
        << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl

@@ -9,51 +9,77 @@ using std::uint64_t;
 
 struct SlotArray {
   // TODO: use unsigned __int128 for when slots are bigger than CHAR_BIT * sizeof(uint64_t) - CHAR_BIT + 1
+  int width_;
+  uint64_t capacity_;
   std::unique_ptr<char[]> payload_;
 
-  static uint64_t SpaceUsed(uint64_t capacity, int width) {
-    return (((capacity * width + sizeof(uint64_t) - 1) / sizeof(uint64_t)) *
+  uint64_t Capacity() const { return capacity_; }
+
+  uint64_t PayloadSpaceUsed() {
+    return (((capacity_ * width_ + sizeof(uint64_t) - 1) / sizeof(uint64_t)) *
                 sizeof(uint64_t) +
             CHAR_BIT - 1) /
            CHAR_BIT;
   }
-  static uint64_t SpaceUsed(int, uint64_t) = delete;
+
+  uint64_t SpaceUsed() {
+    return PayloadSpaceUsed() + sizeof(*this);
+  }
 
   explicit SlotArray() : payload_(nullptr) {}
 
-  explicit SlotArray(uint64_t capacity, int width) : payload_(nullptr) {
-    payload_.reset(new char[SpaceUsed(capacity, width)]());
+  explicit SlotArray(int width, uint64_t capacity)
+      : width_(width), capacity_(capacity), payload_(nullptr) {
+    payload_.reset(new char[PayloadSpaceUsed()]());
   }
 
-  explicit SlotArray(int, uint64_t) = delete;
+  explicit SlotArray(uint64_t, int) = delete;
 
-  uint64_t operator()(int width, uint64_t index) const {
+  template <typename T>
+  struct ReferenceBase {
+    T *that_;
+    uint64_t index_;
+
+    operator uint64_t() const { return that_->Get(index_); }
+
+    ReferenceBase &operator=(uint64_t value) const {
+      that_->Set(index_, value);
+      return *this;
+    }
+  };
+
+  using Reference = ReferenceBase<SlotArray>;
+  using ConstReference = ReferenceBase<const SlotArray>;
+
+  Reference operator[](uint64_t index) {
+    assert(index < capacity_);
+    return Reference{this, index};
+  }
+
+  ConstReference operator[](uint64_t index) const {
+    assert(index < capacity_);
+    return ConstReference{this, index};
+  }
+
+  uint64_t Get(uint64_t index) const {
     uint64_t result;
-    std::memcpy(&result, &payload_[(index * width) / CHAR_BIT], sizeof(result));
-    result =
-        result >> ((index * width) - (CHAR_BIT * ((index * width) / CHAR_BIT)));
-    result = result & ((UINT64_C(1) << width) - 1);
+    std::memcpy(&result, &payload_[(index * width_) / CHAR_BIT],
+                sizeof(result));
+    result = result >>
+             ((index * width_) - (CHAR_BIT * ((index * width_) / CHAR_BIT)));
+    result = result & ((UINT64_C(1) << width_) - 1);
     return result;
   }
 
-  uint64_t operator()(int width, uint64_t index) {
-    return static_cast<const SlotArray &>(*this)(width, index);
-  }
-
-  uint64_t operator()(uint64_t, int) = delete;
-  uint64_t operator()(uint64_t, int) const = delete;
-
-  void Set(int width, uint64_t index, uint64_t value) {
-    assert(value < (UINT64_C(1) << width));
+  void Set(uint64_t index, uint64_t value) {
+    assert(value < (UINT64_C(1) << width_));
     const int offset =
-        ((index * width) - (CHAR_BIT * ((index * width) / CHAR_BIT)));
-    const uint64_t mask = ((UINT64_C(1) << width) - 1) << offset;
+        ((index * width_) - (CHAR_BIT * ((index * width_) / CHAR_BIT)));
+    const uint64_t mask = ((UINT64_C(1) << width_) - 1) << offset;
     uint64_t before;
-    std::memcpy(&before, &payload_[(index * width) / CHAR_BIT], sizeof(before));
+    std::memcpy(&before, &payload_[(index * width_) / CHAR_BIT], sizeof(before));
     before = before & ~mask;
     before = before | (value << offset);
-    std::memcpy(&payload_[(index * width) / CHAR_BIT], &before, sizeof(before));
+    std::memcpy(&payload_[(index * width_) / CHAR_BIT], &before, sizeof(before));
   }
-
-  void Set(int, uint64_t, int, uint64_t) = delete;
 };
