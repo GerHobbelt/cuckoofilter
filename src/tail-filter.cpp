@@ -22,7 +22,7 @@ int main() {
        << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl
        << mm.FilledSlots() << endl
        << boolalpha << (mm.Begin() == mm.End()) << endl;
-  while (mm.Capacity() <= 2 * original_capacity) {
+  while (mm.Capacity() <= 8 * original_capacity) {
     auto ok = mm.Upsize();
     assert(ok);
     cout << mm.Capacity() << endl;
