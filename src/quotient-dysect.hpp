@@ -93,6 +93,8 @@ struct QuotientDysect {
   }
 
   uint64_t Hash(int arena, uint64_t key) const {
+    assert(hash_bijections_[arena - 1].second(
+        hash_bijections_[arena - 1].first(key)));
     return hash_bijections_[arena - 1].first(key);
   }
 
