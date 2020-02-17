@@ -2,15 +2,45 @@
 
 #include <functional>
 
-
 #include "slot-array.hpp"
+
+
 
 struct QuotientDysect {
   std::unique_ptr<std::unique_ptr<SlotArray[]>[] > payload_;
 
   int k_, v_, d_, w_, s_, log_little_;
 
-  std::unique_ptr<std::function<uint64_t(uint64_t)>[]> hash_functions_;
+  using HashFunction = std::function<uint64_t(uint64_t)>;
+
+  using HashBijection = std::pair<HashFunction, HashFunction>;
+
+  std::unique_ptr<HashBijection[]> hash_bijections_;
+
+  static HashBijection Feistelize(HashFunction f, int key_length) {
+    constexpr int kRounds = 4;
+    auto forward = [f, key_length](uint64_t x) {
+      int newk = (key_length + 1) / 2;
+      uint64_t result = x;
+      for (int i = 0; i < kRounds; ++i) {
+        uint64_t temp = result >> newk;
+        temp = temp | (f(result & ((1 << newk) - 1)) << newk);
+        result = temp;
+      }
+      return result;
+    };
+    auto backward = [f, key_length](uint64_t x) {
+      int newk = (key_length + 1) / 2;
+      uint64_t result = x;
+      for (int i = 0; i < kRounds; ++i) {
+        uint64_t temp = result & ((1 << newk) - 1);
+        temp = (temp << newk) | (f(result >> newk) & ((1 << newk) - 1));
+        result = temp;
+      }
+      return result;
+    };
+    return HashBijection{forward, backward};
+  }
 
   uint64_t SpaceUsed() const {
     uint64_t result = sizeof(*this);
@@ -21,29 +51,28 @@ struct QuotientDysect {
       }
     }
     assert(result >= (d_ * (UINT64_C(1) << w_) * (UINT64_C(1) << log_little_) *
-                          (k_ + v_) +
+                          (s_ + v_) +
                       CHAR_BIT - 1) /
                          CHAR_BIT);
     return result;
   }
 
-  QuotientDysect(
-      int k, int v, int d, int w, int s,
-      std::unique_ptr<std::function<uint64_t(uint64_t)>[]> hash_functions)
+  QuotientDysect(int k, int v, int d, int w, int s, int log_little,
+                 std::unique_ptr<HashBijection[]> hash_bijections)
       : payload_(nullptr),
         k_(k),
         v_(v),
         d_(d),
         w_(w),
         s_(s),
-        log_little_(s_),
-        hash_functions_(hash_functions.release()) {
+        log_little_(log_little),
+        hash_bijections_(hash_bijections.release()) {
     assert(k_ > 0);
     assert (v_ >= 0);
     assert (d_ >= 2);
     assert (w_ >= 0);
     assert (s_ >= 0);
-    assert (hash_functions_.get() != nullptr);
+    assert (hash_bijections_.get() != nullptr);
     payload_.reset(new std::unique_ptr<SlotArray[]>[d_]);
     for (int p = 0; p < d_; ++p) {
       payload_[p].reset(new SlotArray[UINT64_C(1) << w_]);
@@ -57,7 +86,36 @@ struct QuotientDysect {
   }
 
   uint64_t Hash(int arena, uint64_t key) const {
-    return hash_functions_[arena - 1](key);
+    return hash_bijections_[arena - 1].first(key);
+  }
+
+  uint64_t HashInverse(int arena, uint64_t key) const {
+    return hash_bijections_[arena - 1].second(key);
+  }
+
+  void Insert(uint64_t key, uint64_t value) {
+    uint64_t current_key = key;
+    int p = 0;
+    while (true) {
+      const uint64_t q = current_key >> (k_ - w_);
+      if (SetLocal(payload_[p][q], key, value)) return;
+
+
+      const uint64_t pow_ell = payload_[p][q].Capacity();
+      const int ell = log_little_ + (pow_ell == (1 << log_little_));
+      uint64_t r = (current_key >> std::max(0, k_ - w_ - ell)) & (pow_ell - 1);
+      r = r << std::max(0, w_ + ell - k_);
+
+      uint64_t i = rand() % ((1 << std::max(0, w_ + ell - k_)) + (1 << s_));
+
+      KeyValuePair kv = Get(p, q, (r + i) & (pow_ell - 1));
+      payload_[p][q][(r + i) & (pow_ell - 1)] = 0;
+      const bool ok = SetLocal(payload_[p][q], key, value);
+      assert(ok);
+      current_key = (p > 0) ? HashInverse(p, kv.key) : kv.key;
+      value = kv.value;
+      p = (p+1) % d_;
+    }
   }
 
   struct KeyValuePair {
@@ -116,6 +174,8 @@ struct QuotientDysect {
              r_ == other.r_;
     }
 
+    bool operator!=(const Iterator &other) { return not(*this == other); }
+
     KeyValuePair Get() const {
       return that_->Get(p_,q_,r_);
     }
@@ -139,7 +199,6 @@ struct QuotientDysect {
 
     int Arena() const { return p_; }
   };
-
 
   Iterator Begin() const {
     Iterator result{this, 0, 0, 0};

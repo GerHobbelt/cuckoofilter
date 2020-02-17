@@ -38,6 +38,7 @@ struct SlotArray {
 
   explicit SlotArray(int width, uint64_t capacity)
       : width_(width), capacity_(capacity), payload_(nullptr) {
+    assert(width_ > 0);
     payload_.reset(new char[PayloadSpaceUsed()]());
   }
 

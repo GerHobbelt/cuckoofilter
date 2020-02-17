@@ -12,10 +12,11 @@ uint64_t MultiplyHash(uint64_t x) {
 }
 
 int main() {
-  auto f = new function<uint64_t(uint64_t)>[1];
-  f[0] = MultiplyHash;
-  QuotientDysect mm(6, 6, 2, 3, 1,
-                    unique_ptr<function<uint64_t(uint64_t)>[]>(f));
+  auto f = new QuotientDysect::HashBijection[1];
+  int keylength = 6;
+  f[0] = QuotientDysect::Feistelize(MultiplyHash, keylength);
+  QuotientDysect mm(keylength, 6, 2, 3, 1, 10,
+                    unique_ptr<QuotientDysect::HashBijection[]>(f));
   const auto original_capacity = mm.Capacity();
   cout << mm.SpaceUsed() << endl
        << mm.Capacity() << endl
@@ -27,5 +28,13 @@ int main() {
     assert(ok);
     cout << mm.Capacity() << endl
          << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl;
+  }
+  cout << "------------------------" << endl;
+  mm.Insert(1, 2);
+  mm.Insert(1, 3);
+  mm.Insert(1, 4);
+  for (auto i = mm.Begin(); i != mm.End(); ++i) {
+    auto f = i.Get();
+    cout << f.key << ' ' << f.value << endl;
   }
 }
