@@ -13,13 +13,20 @@ struct SlotArray {
   uint64_t capacity_;
   std::unique_ptr<char[]> payload_;
 
+  void Swap(SlotArray &that) {
+    using std::swap;
+    swap(width_, that.width_);
+    swap(capacity_, that.capacity_);
+    swap(payload_, that.payload_);
+  }
+
   uint64_t Capacity() const { return capacity_; }
 
-  uint64_t PayloadSpaceUsed() {
-    return (((capacity_ * width_ + sizeof(uint64_t) - 1) / sizeof(uint64_t)) *
-                sizeof(uint64_t) +
-            CHAR_BIT - 1) /
-           CHAR_BIT;
+  uint64_t PayloadSpaceUsed(){
+    return (((capacity_ * width_ + sizeof(uint64_t) * CHAR_BIT - 1) /
+             (sizeof(uint64_t) * CHAR_BIT)) +
+            1) *
+           sizeof(uint64_t);
   }
 
   uint64_t SpaceUsed() {
@@ -42,7 +49,7 @@ struct SlotArray {
 
     operator uint64_t() const { return that_->Get(index_); }
 
-    ReferenceBase &operator=(uint64_t value) const {
+    ReferenceBase &operator=(uint64_t value) {
       that_->Set(index_, value);
       return *this;
     }
