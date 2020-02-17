@@ -39,7 +39,7 @@ int main() {
   mm.Insert(1, 3);
   mm.Insert(1, 4);
   for (auto i = mm.Begin(); i != mm.End(); ++i) {
-    auto f = i.Get();
+    auto f = i.GetOriginal();
     cout << f.key
       //<< ' '
          << f.value << endl;

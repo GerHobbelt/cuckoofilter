@@ -123,7 +123,7 @@ struct QuotientDysect {
 
       uint64_t i = rand() % ((1 << std::max(0, w_ + ell - k_)) + (1 << s_) - 1);
 
-      KeyValuePair kv = Get(p, q, (r + i) & (pow_ell - 1));
+      KeyValuePair kv = GetRaw(p, q, (r + i) & (pow_ell - 1));
       payload_[p][q][(r + i) & (pow_ell - 1)] = 0;
       const bool ok = SetLocal(payload_[p][q], current_key, value);
       assert(ok);
@@ -164,7 +164,7 @@ struct QuotientDysect {
     return false;
   }
 
-  KeyValuePair Get(int p, uint64_t q, uint64_t r) const {
+  KeyValuePair GetRaw(int p, uint64_t q, uint64_t r) const {
     KeyValuePair result;
     const SlotArray &t = payload_[p][q];
     const uint64_t pow_ell = payload_[p][q].Capacity();
@@ -174,7 +174,14 @@ struct QuotientDysect {
     result.key = result.key >> std::max(0, ell + w_ - k_);
     result.key =
         (result.key << std::max(0, k_ - ell - w_)) | (t[r] >> (v_ + s_));
+
     result.value = (t[r] >> s_) & ((1 << v_) - 1);
+    return result;
+  }
+
+  KeyValuePair GetOriginal(int p, uint64_t q, uint64_t r) const {
+    KeyValuePair result = GetRaw(p, q, r);
+    if (p > 0) result.key = HashInverse(p, result.key);
     return result;
   }
 
@@ -192,8 +199,12 @@ struct QuotientDysect {
 
     bool operator!=(const Iterator &other) { return not(*this == other); }
 
-    KeyValuePair Get() const {
-      return that_->Get(p_,q_,r_);
+    KeyValuePair GetRaw() const {
+      return that_->GetRaw(p_,q_,r_);
+    }
+
+    KeyValuePair GetOriginal() const {
+      return that_->GetOriginal(p_,q_,r_);
     }
 
     Iterator &operator++() {
@@ -235,7 +246,7 @@ struct QuotientDysect {
 
     bool operator!=(const Iterator &j) const { return not(i_ == j); }
 
-    uint64_t operator*() const { return i_.Get().value; }
+    uint64_t operator*() const { return i_.GetRaw().value; }
 
     ResultSetIterator operator++() {
       do {
@@ -246,7 +257,7 @@ struct QuotientDysect {
           current_key_ = that_->Hash(i_.Arena(), key_);
           AdvanceWithinArena();
         }
-      } while (i_.Get().key != current_key_);
+      } while (i_.GetRaw().key != current_key_);
       return *this;
     }
 
@@ -265,7 +276,7 @@ struct QuotientDysect {
     ResultSetIterator(const QuotientDysect *that, uint64_t key)
         : that_(that), i_{that_, 0, 0, 0}, key_(key), current_key_(key) {
       AdvanceWithinArena();
-      if (i_.Get().key != current_key_) ++i_;
+      if (i_.GetRaw().key != current_key_) ++i_;
     }
   };
 
@@ -282,7 +293,7 @@ struct QuotientDysect {
               UINT64_C(2) << log_little_);
           for (uint64_t r = 0; r < (UINT64_C(1) << log_little_); ++r) {
             if (payload_[p][q][r] == 0) continue;
-            KeyValuePair kv = Get(p, q, r);
+            KeyValuePair kv = GetRaw(p, q, r);
             if (not SetLocal(replacement, kv.key, kv.value)) return false;
           }
           payload_[p][q].Swap(replacement);
