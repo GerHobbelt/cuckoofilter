@@ -12,12 +12,14 @@ uint64_t MultiplyHash(uint64_t x) {
 }
 
 int main() {
-  auto f = new QuotientDysect::HashBijection[1];
   int keylength = 22;
-  f[0] = QuotientDysect::Feistelize(MultiplyHash, keylength);
-  QuotientDysect mm(keylength, 3, 2, 3, 1, 1,
-                    unique_ptr<QuotientDysect::HashBijection[]>(f));
 
+  // auto f = new QuotientDysect::HashBijection[1];
+  // f[0] = QuotientDysect::Feistelize(MultiplyHash, keylength);
+  // QuotientDysect mm_old(keylength, 3, 2, 3, 1, 1,
+  //                   unique_ptr<QuotientDysect::HashBijection[]>(f));
+
+  QuotientDysect mm(keylength, 3, 2, 3, 1, 1, MultiplyHash);
   cout << mm.SpaceUsed() << endl
        << mm.Capacity() << endl
        << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl

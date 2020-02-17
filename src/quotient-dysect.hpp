@@ -17,14 +17,18 @@ struct QuotientDysect {
 
   std::unique_ptr<HashBijection[]> hash_bijections_;
 
-  static HashBijection Feistelize(HashFunction f, int key_length) {
+  template<typename F>
+  static HashBijection Feistelize(F g, int key_length) {
+    HashFunction f = g;
     constexpr int kRounds = 4;
     auto forward = [f, key_length](uint64_t x) {
       int newk = (key_length + 1) / 2;
       uint64_t result = x;
       for (int i = 0; i < kRounds; ++i) {
         uint64_t temp = result >> newk;
-        temp = temp | (f(result & ((1 << newk) - 1)) << newk);
+        temp = temp | (((result & ((1 << newk) - 1)) ^
+                        (f(result >> newk) & ((1 << newk) - 1)))
+                       << newk);
         result = temp;
       }
       return result;
@@ -33,8 +37,9 @@ struct QuotientDysect {
       int newk = (key_length + 1) / 2;
       uint64_t result = x;
       for (int i = 0; i < kRounds; ++i) {
-        uint64_t temp = result & ((1 << newk) - 1);
-        temp = (temp << newk) | (f(result >> newk) & ((1 << newk) - 1));
+        uint64_t temp = (result & ((1 << newk) - 1)) << newk;
+        temp = temp | ((result >> newk) ^
+                       (f(result & ((1 << newk) - 1)) & ((1 << newk) - 1)));
         result = temp;
       }
       return result;
@@ -57,8 +62,9 @@ struct QuotientDysect {
     return result;
   }
 
+  template <typename... Ts>
   QuotientDysect(int k, int v, int d, int w, int s, int log_little,
-                 std::unique_ptr<HashBijection[]> hash_bijections)
+                 Ts... hash_functions)
       : payload_(nullptr),
         k_(k),
         v_(v),
@@ -66,7 +72,8 @@ struct QuotientDysect {
         w_(w),
         s_(s),
         log_little_(log_little),
-        hash_bijections_(hash_bijections.release()) {
+        hash_bijections_(new HashBijection[sizeof...(Ts)]{
+            Feistelize(hash_functions, k_)...}) {
     assert(k_ > 0);
     assert (v_ >= 0);
     assert (d_ >= 2);
