@@ -188,8 +188,8 @@ struct QuotientDysect {
     for (int p = 0; p < d_; ++p) {
       for (int q = 0; q < (1 << w_); ++ q) {
         if (payload_[p][q].Capacity() == (1 << log_little_)) {
-          int old_width = k_ + v_ + s_ - w_ - log_little_;
-          SlotArray replacement(old_width - 1, UINT64_C(2) << log_little_);
+          SlotArray replacement(s_ + v_ + std::max(0, k_ - log_little_ - w_),
+                                UINT64_C(2) << log_little_);
           for (uint64_t r = 0; r < (1 << log_little_); ++r) {
             if (payload_[p][q][r] == 0) continue;
             KeyValuePair kv = Get(p, q, r);

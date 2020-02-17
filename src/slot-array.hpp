@@ -9,7 +9,7 @@
 using std::uint64_t;
 
 struct SlotArray {
-  // TODO: use unsigned __int128 for when slots are bigger than CHAR_BIT * sizeof(uint64_t) - CHAR_BIT + 1
+  // TODO: use unsigned __int128 for when slots are bigger than CHAR_BIT * sizeof(uint64_t) - CHAR_BIT
   int width_;
   uint64_t capacity_;
   std::unique_ptr<char[]> payload_;
