@@ -34,7 +34,7 @@ struct SlotArray {
     return PayloadSpaceUsed() + sizeof(*this);
   }
 
-  explicit SlotArray() : payload_(nullptr) {}
+  explicit SlotArray() : width_(0), capacity_(0), payload_(nullptr) {}
 
   explicit SlotArray(int width, uint64_t capacity)
       : width_(width), capacity_(capacity), payload_(nullptr) {

@@ -17,6 +17,18 @@ struct QuotientDysect {
 
   std::unique_ptr<HashBijection[]> hash_bijections_;
 
+  void Swap(QuotientDysect &that) {
+    using std::swap;
+    swap(payload_, that.payload_);
+    swap(k_, that.k_);
+    swap(v_, that.v_);
+    swap(d_,that.d_);
+    swap(w_, that.w_);
+    swap(s_, that.s_);
+    swap(log_little_, that.log_little_);
+    swap(hash_bijections_, that.hash_bijections_);
+  }
+
   template<typename F>
   static HashBijection Feistelize(F g, int key_length) {
     HashFunction f = g;
@@ -113,7 +125,7 @@ struct QuotientDysect {
       if (iterations > 500) Upsize();
 
       const uint64_t q = current_key >> (k_ - w_);
-      if (SetLocal(payload_[p][q], key, value)) return;
+      if (SetLocal(payload_[p][q], current_key, value)) return;
 
 
       const uint64_t pow_ell = payload_[p][q].Capacity();
@@ -127,7 +139,8 @@ struct QuotientDysect {
       payload_[p][q][(r + i) & (pow_ell - 1)] = 0;
       const bool ok = SetLocal(payload_[p][q], current_key, value);
       assert(ok);
-      current_key = (p > 0) ? HashInverse(p, kv.key) : kv.key;
+      current_key = kv.key;
+      key = (p > 0) ? HashInverse(p, current_key) : current_key;
       value = kv.value;
       p = (p+1) % d_;
     }
@@ -276,7 +289,7 @@ struct QuotientDysect {
     ResultSetIterator(const QuotientDysect *that, uint64_t key)
         : that_(that), i_{that_, 0, 0, 0}, key_(key), current_key_(key) {
       AdvanceWithinArena();
-      if (i_.GetRaw().key != current_key_) ++i_;
+      if ((0 == i_.GetRaw().value) || (i_.GetRaw().key != current_key_)) ++i_;
     }
   };
 
