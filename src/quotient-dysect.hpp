@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <iostream>
 
 #include "slot-array.hpp"
 
@@ -34,25 +35,31 @@ struct QuotientDysect {
     HashFunction f = g;
     constexpr int kRounds = 4;
     auto forward = [f, key_length](uint64_t x) {
-      int newk = (key_length + 1) / 2;
+      int smallk = key_length / 2;
+      int bigk = key_length - smallk;
       uint64_t result = x;
       for (int i = 0; i < kRounds; ++i) {
-        uint64_t temp = result >> newk;
-        temp = temp | (((result & ((1 << newk) - 1)) ^
-                        (f(result >> newk) & ((1 << newk) - 1)))
-                       << newk);
-        result = temp;
+        uint64_t ab = result >> bigk;
+        uint64_t cde = result & ((UINT64_C(1) << bigk) - 1);
+        uint64_t cd = cde >> (bigk - smallk);
+        uint64_t e = cde & ((UINT64_C(1) << (bigk - smallk)) - 1);
+        uint64_t eab = (e << smallk) | ab;
+        uint64_t temp = (cd ^ f(ab)) & ((UINT64_C(1) << smallk) - 1);
+        result = (temp << bigk) | eab;
       }
       return result;
     };
     auto backward = [f, key_length](uint64_t x) {
-      int newk = (key_length + 1) / 2;
+      int smallk = key_length / 2;
+      int bigk = key_length - smallk;
       uint64_t result = x;
       for (int i = 0; i < kRounds; ++i) {
-        uint64_t temp = (result & ((1 << newk) - 1)) << newk;
-        temp = temp | ((result >> newk) ^
-                       (f(result & ((1 << newk) - 1)) & ((1 << newk) - 1)));
-        result = temp;
+        uint64_t eab = result & ((UINT64_C(1) << bigk) - 1);
+        uint64_t temp = result >> bigk;
+        uint64_t e = eab >> smallk;
+        uint64_t ab = eab & ((UINT64_C(1) << smallk) - 1);
+        uint64_t cd = (f(ab) & ((UINT64_C(1) << smallk) - 1)) ^ temp;
+        result = (ab << bigk) | (cd << (bigk - smallk)) | e;
       }
       return result;
     };
@@ -91,6 +98,7 @@ struct QuotientDysect {
     assert (d_ >= 2);
     assert (w_ >= 0);
     assert (s_ >= 0);
+    assert (log_little_ >= 0);
     assert (hash_bijections_.get() != nullptr);
     payload_.reset(new std::unique_ptr<SlotArray[]>[d_]);
     for (int p = 0; p < d_; ++p) {
@@ -105,13 +113,20 @@ struct QuotientDysect {
   }
 
   uint64_t Hash(int arena, uint64_t key) const {
-    assert(hash_bijections_[arena - 1].second(
-        hash_bijections_[arena - 1].first(key)));
+    assert(key == hash_bijections_[arena - 1].second(
+                      hash_bijections_[arena - 1].first(key)));
     return hash_bijections_[arena - 1].first(key);
   }
 
   uint64_t HashInverse(int arena, uint64_t key) const {
     return hash_bijections_[arena - 1].second(key);
+  }
+
+  bool FindExact(uint64_t key, uint64_t value) {
+    for (auto i = Find(key); not i.AtEnd(); ++i) {
+      if (*i == value) return true;
+    }
+    return false;
   }
 
   void Insert(uint64_t key, uint64_t value) {
@@ -122,11 +137,17 @@ struct QuotientDysect {
     uint64_t iterations = 0;
     while (true) {
       ++iterations;
-      if (iterations > 500) Upsize();
+      if (iterations > 500) {
+        const bool ok = Upsize();
+        assert(ok);
+        iterations = 0;
+      }
 
       const uint64_t q = current_key >> (k_ - w_);
-      if (SetLocal(payload_[p][q], current_key, value)) return;
-
+      if (SetLocal(payload_[p][q], current_key, value)) {
+        assert(FindExact(key, value));
+        return;
+      }
 
       const uint64_t pow_ell = payload_[p][q].Capacity();
       const int ell = log_little_ + (pow_ell > (UINT64_C(1) << log_little_));
@@ -143,6 +164,7 @@ struct QuotientDysect {
       key = (p > 0) ? HashInverse(p, current_key) : current_key;
       value = kv.value;
       p = (p+1) % d_;
+      current_key = (p > 0) ? Hash(p, key) : key;
     }
   }
 
@@ -150,7 +172,7 @@ struct QuotientDysect {
     uint64_t key = 0, value = 0;
   };
 
-  bool SetLocal(SlotArray &sa, uint64_t key, uint64_t value) {
+  uint64_t SetLocal(SlotArray &sa, uint64_t key, uint64_t value) {
     //const uint64_t q = key >> (k_ - w_);
     const uint64_t pow_ell = sa.Capacity();
     const int ell = log_little_ + (pow_ell > (UINT64_C(1) << log_little_));
@@ -162,19 +184,20 @@ struct QuotientDysect {
     for (uint64_t i = r; i < (r + (1 << std::max(0, w_ + ell - k_))); ++i) {
       if (0 == sa[i & (pow_ell - 1)]) {
         sa[i & (pow_ell - 1)] = val;
-        return true;
+        return (i & (pow_ell - 1)) + 1;
       }
     }
 
     for (uint64_t i = 1; i < (UINT64_C(1) << s_); ++i) {
       uint64_t r_with =
-          (r + (1 << std::max(0, w_ + ell - k_)) - 1 + i) & (pow_ell - 1);
+        (r + (1 << std::max(0, w_ + ell - k_)) - 1)  & (pow_ell - 1);
+      r_with = (r_with + i) & (pow_ell - 1);
       if (0 == sa[r_with]) {
         sa[r_with] = val | i;
-        return true;
+        return r_with + 1;
       }
     }
-    return false;
+    return 0;
   }
 
   KeyValuePair GetRaw(int p, uint64_t q, uint64_t r) const {
@@ -212,13 +235,9 @@ struct QuotientDysect {
 
     bool operator!=(const Iterator &other) { return not(*this == other); }
 
-    KeyValuePair GetRaw() const {
-      return that_->GetRaw(p_,q_,r_);
-    }
+    KeyValuePair GetRaw() const { return that_->GetRaw(p_, q_, r_); }
 
-    KeyValuePair GetOriginal() const {
-      return that_->GetOriginal(p_,q_,r_);
-    }
+    KeyValuePair GetOriginal() const { return that_->GetOriginal(p_, q_, r_); }
 
     Iterator &operator++() {
       do {
@@ -251,45 +270,78 @@ struct QuotientDysect {
   struct ResultSetIterator {
     const QuotientDysect *that_;
 
-    Iterator i_;
+    int p_;
+    uint64_t q_, r_;
+
+    uint64_t offset_, end_offset_;
 
     uint64_t key_, current_key_;
 
-    bool operator==(const Iterator &j) const { return i_ == j; }
+    bool AtEnd() {
+      return p_ == that_->d_;
+    }
 
-    bool operator!=(const Iterator &j) const { return not(i_ == j); }
+    KeyValuePair GetBothRaw() const {
+      return that_->GetRaw(
+          p_, q_, (r_ + offset_) & (that_->payload_[p_][q_].Capacity() - 1));
+    }
 
-    uint64_t operator*() const { return i_.GetRaw().value; }
+    uint64_t operator*() const { return GetBothRaw().value; }
 
-    ResultSetIterator operator++() {
-      do {
-        const int arena = i_.Arena();
-        ++i_;
-        if (i_ == that_->End()) return *this;
-        if (i_.Arena() > arena) {
-          current_key_ = that_->Hash(i_.Arena(), key_);
-          AdvanceWithinArena();
+    ResultSetIterator& operator++() {
+      if (AtEnd()) return *this;
+      if (offset_ + 1 < end_offset_) {
+        ++offset_;
+        while ((GetBothRaw().key != current_key_) &&
+               (offset_ + 1 < end_offset_)) {
+          ++offset_;
         }
-      } while (i_.GetRaw().key != current_key_);
+        if ((GetBothRaw().key == current_key_) && (GetBothRaw().value != 0)) return *this;
+      }
+      do {
+        ++p_;
+        if (AtEnd()) return *this;
+        current_key_ = that_->Hash(p_, key_);
+        AdvanceWithinArena();
+      } while (offset_ == end_offset_);
       return *this;
     }
 
     void AdvanceWithinArena() {
-      i_.q_ = current_key_ >> (that_->k_ - that_->w_);
-      const uint64_t pow_ell = that_->payload_[i_.p_][i_.q_].Capacity();
+      offset_ = 0;
+      q_ = current_key_ >> (that_->k_ - that_->w_);
+      const uint64_t pow_ell = that_->payload_[p_][q_].Capacity();
       const int ell =
         that_->log_little_ + (pow_ell > (UINT64_C(1) << that_->log_little_));
-      i_.r_ = current_key_ & ((1 << (that_->k_ - that_->w_)) - 1);
-      i_.r_ = i_.r_ >> std::max(0, that_->k_ - ell - that_->w_);
-      assert(i_.r_ < that_->payload_[i_.p_][i_.q_].Capacity());
-      i_.r_ = i_.r_ << std::max(0, that_->w_ + ell - that_->k_);
-      assert(i_.r_ < that_->payload_[i_.p_][i_.q_].Capacity());
+      r_ = current_key_ & ((1 << (that_->k_ - that_->w_)) - 1);
+      r_ = r_ >> std::max(0, that_->k_ - ell - that_->w_);
+      assert(r_ < that_->payload_[p_][q_].Capacity());
+      r_ = r_ << std::max(0, that_->w_ + ell - that_->k_);
+      assert(r_ < that_->payload_[p_][q_].Capacity());
+      end_offset_ = (1 << std::max(0, that_->w_ + ell - that_->k_)) +
+                    (UINT64_C(1) << that_->s_) - 1;
+      while ((offset_ < end_offset_) && ((GetBothRaw().value == 0) ||
+                                         (GetBothRaw().key != current_key_))) {
+        ++offset_;
+      }
     }
 
     ResultSetIterator(const QuotientDysect *that, uint64_t key)
-        : that_(that), i_{that_, 0, 0, 0}, key_(key), current_key_(key) {
+        : that_(that),
+          p_(0),
+          q_(0),
+          r_(0),
+          offset_(0),
+          end_offset_(0),
+          key_(key),
+          current_key_(key) {
       AdvanceWithinArena();
-      if ((0 == i_.GetRaw().value) || (i_.GetRaw().key != current_key_)) ++i_;
+      while (offset_ == end_offset_) {
+        ++p_;
+        if (AtEnd()) return;
+        current_key_ = that_->Hash(p_, key_);
+        AdvanceWithinArena();
+      }
     }
   };
 
@@ -307,7 +359,15 @@ struct QuotientDysect {
           for (uint64_t r = 0; r < (UINT64_C(1) << log_little_); ++r) {
             if (payload_[p][q][r] == 0) continue;
             KeyValuePair kv = GetRaw(p, q, r);
-            if (not SetLocal(replacement, kv.key, kv.value)) return false;
+            const uint64_t ok = SetLocal(replacement, kv.key, kv.value);
+            // std::cout << "relocate " << r << " to " << ok << " within "
+            //           << payload_[p][q].Capacity() << " / "
+            //           << replacement.Capacity() << std::endl;
+            //assert(ok);
+            if (not ok) {  //
+              // TODO: shouldn't this be an error?
+              //return false;
+            }
           }
           payload_[p][q].Swap(replacement);
           if ((p + 1 == d_) && (q + 1 == (1 << w_))) ++log_little_;

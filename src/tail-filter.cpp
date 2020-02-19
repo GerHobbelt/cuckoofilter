@@ -38,17 +38,35 @@ uint64_t pcg64(pcg32_random_t* rng) {
 }
 
 int main() {
-  TailFilter tf(10, 1.0 / 256);
+  TailFilter tf(1, 1.0 / 256);
 
   pcg32_random_t rnd = {1, 1};
   const uint64_t ndv = 1'000'000;
   unique_ptr<uint64_t[]> hashes(new uint64_t[ndv]);
+
   for (uint64_t i = 0; i < ndv; ++i) {
-    hashes[i] = pcg64(&rnd);
-    if (not tf.Insert(hashes[i])) cout << i << endl;
-    for (uint64_t j = 0; j <= i; ++j) {
-      assert(tf.Lookup(hashes[j]));
+    if ((i > 0) && (0 == (i & (i - 1)))) {
+      cout << i << endl << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / i) << endl;
     }
+    hashes[i] = pcg64(&rnd);
+    if (i == 978383) {
+      cout << "here we go\n";
+    }
+    //const bool more_ndv =
+    tf.Insert(hashes[i]);
+    //if (not more_ndv) cout << i << endl;
+
+    // for (uint64_t j = 0; j <= i; ++j) {
+    //   assert(tf.Lookup(hashes[j]));
+    // }
+
+    if (i >= 949101) {
+      assert(tf.Lookup(hashes[949101]));
+    }
+  }
+
+  for (uint64_t i = 0; i < ndv; ++i) {
+    assert(tf.Lookup(hashes[i]));
   }
 
   int keylength = 22;
@@ -83,10 +101,13 @@ int main() {
          //<< ' '
          << f.value << endl;
   }
+
   for (int i = 0; i < 10'000'000; ++i) {
     auto key = rand() & ((1 << keylength) - 1);
+    // cout << "iteration " << i << endl;
     mm.Insert(key, 1);
-    assert(mm.Find(key) != mm.End());
+    assert(not mm.Find(key).AtEnd());
+    assert(mm.FindExact(key,1));
     if (0 == (i & (i-1))) {
       cout << i << endl
            << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl;

@@ -23,14 +23,14 @@ struct SlotArray {
 
   uint64_t Capacity() const { return capacity_; }
 
-  uint64_t PayloadSpaceUsed(){
+  uint64_t PayloadSpaceUsed() const {
     return (((capacity_ * width_ + sizeof(uint64_t) * CHAR_BIT - 1) /
              (sizeof(uint64_t) * CHAR_BIT)) +
             1) *
            sizeof(uint64_t);
   }
 
-  uint64_t SpaceUsed() {
+  uint64_t SpaceUsed() const {
     return PayloadSpaceUsed() + sizeof(*this);
   }
 
@@ -53,6 +53,17 @@ struct SlotArray {
 
     ReferenceBase &operator=(uint64_t value) {
       that_->Set(index_, value);
+      return *this;
+    }
+
+    ReferenceBase &operator=(const ReferenceBase & x) {
+      that_->Set(index_, static_cast<uint64_t>(x));
+      return *this;
+    }
+
+    template<typename U>
+    ReferenceBase &operator=(ReferenceBase<U> x) {
+      that_->Set(index_, static_cast<uint64_t>(x));
       return *this;
     }
   };
