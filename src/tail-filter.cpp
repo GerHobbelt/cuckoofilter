@@ -2,6 +2,7 @@
 #include "tail-filter.hpp"
 
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -46,19 +47,24 @@ int main() {
 
   for (uint64_t i = 0; i < ndv; ++i) {
     if ((i > 0) && (0 == (i & (i - 1)))) {
-      cout << i << endl << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / i) << endl;
+      cout << "n " << i << " or " << tf.QdNdv() << endl
+           << "bits per item " << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / i) << endl
+           << "bits per slot " << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / tf.QuotientCapacity())
+           << endl
+           << "slots per item " << ((1.0 * tf.QuotientCapacity()) / i) << endl;
     }
     hashes[i] = pcg64(&rnd);
-    if (i == 978383) {
-      cout << "here we go\n";
-    }
     //const bool more_ndv =
+    if (i == 259) {
+      cout << "here\n";
+    }
     tf.Insert(hashes[i]);
-    //if (not more_ndv) cout << i << endl;
 
-    // for (uint64_t j = 0; j <= i; ++j) {
-    //   assert(tf.Lookup(hashes[j]));
-    // }
+    //    if (not more_ndv) cout << i << endl;
+
+    for (uint64_t j = 0; j <= i; ++j) {
+      assert(tf.Lookup(hashes[j]));
+    }
 
     if (i >= 949101) {
       assert(tf.Lookup(hashes[949101]));
@@ -69,6 +75,7 @@ int main() {
     assert(tf.Lookup(hashes[i]));
   }
 
+  //return 0;
   int keylength = 22;
 
   // auto f = new QuotientDysect::HashBijection[1];
@@ -76,7 +83,7 @@ int main() {
   // QuotientDysect mm_old(keylength, 3, 2, 3, 1, 1,
   //                   unique_ptr<QuotientDysect::HashBijection[]>(f));
 
-  QuotientDysect mm(keylength, 3, 2, 3, 1, 1, MultiplyHash);
+  QuotientDysect mm(keylength, 3 /*val*/, 2/*d*/, 3/*w*/, 2/*s*/, 1, MultiplyHash);
   cout << mm.SpaceUsed() << endl
        << mm.Capacity() << endl
        << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl
@@ -102,8 +109,11 @@ int main() {
          << f.value << endl;
   }
 
-  for (int i = 0; i < 10'000'000; ++i) {
-    auto key = rand() & ((1 << keylength) - 1);
+  vector<int> inserted;
+  for (int i = 0; i < 40'000'000; ++i) {
+    auto key = pcg64(&rnd) & ((1 << keylength) - 1);
+    key = key & ((1 << mm.k_) - 1);
+    inserted.push_back(key);
     // cout << "iteration " << i << endl;
     mm.Insert(key, 1);
     assert(not mm.Find(key).AtEnd());
@@ -111,6 +121,12 @@ int main() {
     if (0 == (i & (i-1))) {
       cout << i << endl
            << (1.0 * mm.SpaceUsed() * CHAR_BIT) / mm.Capacity() << endl;
+    }
+  }
+  for (unsigned i = 0; i < inserted.size(); ++i) {
+    if (not mm.FindExact(inserted[i], 1)) {
+      cout << i << endl;
+      assert(false);
     }
   }
 }

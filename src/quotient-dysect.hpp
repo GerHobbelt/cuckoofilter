@@ -8,6 +8,8 @@
 
 
 struct QuotientDysect {
+  uint64_t ndv_, capacity_;
+
   std::unique_ptr<std::unique_ptr<SlotArray[]>[] > payload_;
 
   int k_, v_, d_, w_, s_, log_little_;
@@ -84,7 +86,9 @@ struct QuotientDysect {
   template <typename... Ts>
   QuotientDysect(int k, int v, int d, int w, int s, int log_little,
                  Ts... hash_functions)
-      : payload_(nullptr),
+      : ndv_(0),
+        capacity_(0),
+        payload_(nullptr),
         k_(k),
         v_(v),
         d_(d),
@@ -106,6 +110,7 @@ struct QuotientDysect {
       const int slot_length = s_ + v_ + std::max(0, k_ - w_ - log_little_);
       for (uint64_t q = 0; q < (UINT64_C(1) << w); ++q) {
         payload_[p][q] = SlotArray(slot_length, UINT64_C(1) << log_little_);
+        capacity_ += UINT64_C(1) << log_little_;
       }
     }
     assert (0 == FilledSlots());
@@ -130,6 +135,7 @@ struct QuotientDysect {
   }
 
   void Insert(uint64_t key, uint64_t value) {
+    //std::cout << "Insert\t" << key << '\t' << value << std::endl;
     assert (key < (UINT64_C(1) << k_));
     assert(value < (UINT64_C(1) << v_));
     uint64_t current_key = key;
@@ -138,28 +144,45 @@ struct QuotientDysect {
     while (true) {
       ++iterations;
       if (iterations > 500) {
+        // std::cout << "slots per item " << (1.0 * capacity_ / ndv_) << std::endl;
+        // std::cout << "Upsize\t" << capacity_ << '\t' << log_little_
+        //           << std::endl;
         const bool ok = Upsize();
         assert(ok);
         iterations = 0;
       }
 
       const uint64_t q = current_key >> (k_ - w_);
-      if (SetLocal(payload_[p][q], current_key, value)) {
+      if (SetLocal(payload_[p][q], current_key, value, false)) {
+        ++ndv_;
         assert(FindExact(key, value));
         return;
       }
 
       const uint64_t pow_ell = payload_[p][q].Capacity();
       const int ell = log_little_ + (pow_ell > (UINT64_C(1) << log_little_));
+      assert(pow_ell == (UINT64_C(1) << ell));
       uint64_t r = (current_key >> std::max(0, k_ - w_ - ell)) & (pow_ell - 1);
       r = r << std::max(0, w_ + ell - k_);
 
-      uint64_t i = rand() % ((1 << std::max(0, w_ + ell - k_)) + (1 << s_) - 1);
+      uint64_t i =
+          rand() % std::min(pow_ell, (1 << std::max(0, w_ + ell - k_)) +
+                                         (1 << s_) - UINT64_C(1));
 
       KeyValuePair kv = GetRaw(p, q, (r + i) & (pow_ell - 1));
+      //std::cout << p << '\t' << q << '\t' << r << '\t' << i << '\t' << kv.key << '\t' << kv.value << std::endl;
       payload_[p][q][(r + i) & (pow_ell - 1)] = 0;
-      const bool ok = SetLocal(payload_[p][q], current_key, value);
-      assert(ok);
+      uint64_t slot_val =
+          (value << s_) |
+          ((current_key & ((1 << std::max(0, k_ - w_ - ell)) - 1)) << (s_ + v_));
+      if (i < (UINT64_C(1) << std::max(0, w_ + ell - k_))) {
+        payload_[p][q][(r + i) & (pow_ell - 1)] = slot_val;
+      } else {
+        payload_[p][q][(r + i) & (pow_ell - 1)] = (slot_val | (i - (1 << std::max(0, w_ + ell - k_)) + 1));
+      }
+      // const bool ok = SetLocal(payload_[p][q], current_key, value, true);
+      // assert(ok);
+      assert(FindExact(key, value));
       current_key = kv.key;
       key = (p > 0) ? HashInverse(p, current_key) : current_key;
       value = kv.value;
@@ -172,12 +195,22 @@ struct QuotientDysect {
     uint64_t key = 0, value = 0;
   };
 
-  uint64_t SetLocal(SlotArray &sa, uint64_t key, uint64_t value) {
-    //const uint64_t q = key >> (k_ - w_);
+  uint64_t SetLocal(SlotArray &sa, uint64_t key, uint64_t value, bool force) {
+    // const uint64_t q = key >> (k_ - w_);
     const uint64_t pow_ell = sa.Capacity();
     const int ell = log_little_ + (pow_ell > (UINT64_C(1) << log_little_));
-    uint64_t r = (key >> std::max(0, k_ - w_ - ell)) & (pow_ell - 1);
+    assert(pow_ell == (UINT64_C(1) << ell));
+
+  CUCKOO:
+    uint64_t r = key & ((1 << (k_ - w_)) - 1);
+    r = r >> std::max(0, k_ - ell - w_);
+    assert(r < pow_ell);
     r = r << std::max(0, w_ + ell - k_);
+    assert(r < pow_ell);
+
+    // uint64_t r = (key >> std::max(0, k_ - w_ - ell)) & (pow_ell - 1);
+    // r = r << std::max(0, w_ + ell - k_);
+
     uint64_t val =
         (value << s_) |
         ((key & ((1 << std::max(0, k_ - w_ - ell)) - 1)) << (s_ + v_));
@@ -188,13 +221,22 @@ struct QuotientDysect {
       }
     }
 
-    for (uint64_t i = 1; i < (UINT64_C(1) << s_); ++i) {
+    for (uint64_t i = 1; i < std::min(sa.Capacity(), UINT64_C(1) << s_); ++i) {
       uint64_t r_with =
-        (r + (1 << std::max(0, w_ + ell - k_)) - 1)  & (pow_ell - 1);
+          (r + (1 << std::max(0, w_ + ell - k_)) - 1) & (pow_ell - 1);
       r_with = (r_with + i) & (pow_ell - 1);
       if (0 == sa[r_with]) {
         sa[r_with] = val | i;
         return r_with + 1;
+      }
+      if (force && (i > (sa[r_with] & ((1 << s_) - 1)))) {
+        value = (sa[r_with] >> s_) & ((1 << v_) - 1);
+        key = r_with - (sa[r_with] & ((1 << s_) - 1));
+        key = key >> std::max(0, w_ + ell - k_);
+        key = key << std::max(0, k_ - ell - w_);
+        key = key | (sa[r_with] >> (v_ + s_));
+        sa[r_with] = val | i;
+        goto CUCKOO;
       }
     }
     return 0;
@@ -320,6 +362,7 @@ struct QuotientDysect {
       assert(r_ < that_->payload_[p_][q_].Capacity());
       end_offset_ = (1 << std::max(0, that_->w_ + ell - that_->k_)) +
                     (UINT64_C(1) << that_->s_) - 1;
+      end_offset_ = std::min(end_offset_, that_->payload_[p_][q_].Capacity());
       while ((offset_ < end_offset_) && ((GetBothRaw().value == 0) ||
                                          (GetBothRaw().key != current_key_))) {
         ++offset_;
@@ -356,21 +399,32 @@ struct QuotientDysect {
           SlotArray replacement(
               s_ + v_ + std::max(0, k_ - log_little_ - w_ - 1),
               UINT64_C(2) << log_little_);
+          int ndv_before = 0, ndv_after = 0;
           for (uint64_t r = 0; r < (UINT64_C(1) << log_little_); ++r) {
             if (payload_[p][q][r] == 0) continue;
+            ++ndv_before;
             KeyValuePair kv = GetRaw(p, q, r);
-            const uint64_t ok = SetLocal(replacement, kv.key, kv.value);
+            const uint64_t ok = SetLocal(replacement, kv.key, kv.value, true);
             // std::cout << "relocate " << r << " to " << ok << " within "
             //           << payload_[p][q].Capacity() << " / "
             //           << replacement.Capacity() << std::endl;
             //assert(ok);
             if (not ok) {  //
               // TODO: shouldn't this be an error?
-              //return false;
             }
+            ndv_after += (ok != 0);
+          }
+          if (ndv_before != ndv_after) {
+            std::cout << "uhoh " << p << " " << q << " " << ndv_before << " "
+                      << ndv_after << std::endl;
           }
           payload_[p][q].Swap(replacement);
-          if ((p + 1 == d_) && (q + 1 == (1 << w_))) ++log_little_;
+          capacity_ += UINT64_C(1) << log_little_;
+          if ((p + 1 == d_) && (q + 1 == (1 << w_))) {
+            ++log_little_;
+            // std::cout << "increased log_little_ to " << log_little_
+            //           << std::endl;
+          }
           return true;
         }
       }

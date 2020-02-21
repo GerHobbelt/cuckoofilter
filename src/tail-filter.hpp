@@ -22,6 +22,8 @@ struct TailFilter {
     return qd_.SpaceUsed() + bitset_.SpaceUsed() + sizeof(*this);
   }
 
+  uint64_t QdNdv() const { return qd_.ndv_; }
+
   static uint64_t MultiplyHash(uint64_t x) {
     unsigned __int128 y = 0x6d064b7e7e084d32;
     y = y << 64;
@@ -29,15 +31,20 @@ struct TailFilter {
     return (static_cast<unsigned __int128>(x) * y) >> 64;
   }
 
+  uint64_t QuotientCapacity() const { return qd_.Capacity(); }
+
   TailFilter(int lgm, double epsilon)
       : ndv_(0),
         epoch_(0),
         lgm_(std::max(lgm, 3)),
         lgme_(lgm_ + std::ilogb(1.0 / epsilon)),
-        qd_(lgm_ + epoch_, 1 + lgme_ - lgm_, 2 /* d */, 3 /* w */, 1 /* s */,
-            std::max(0, lgm_ - 1 - 3), MultiplyHash),
+        qd_(lgm_ + epoch_, 1 + lgme_ - lgm_, 2 /* d */, 3 /* w */, 2 /* s */,
+            //std::max(0, lgm_ - 1 - 5),
+            0,
+            MultiplyHash),
         bitset_() {
     assert(lgm > 0);
+    assert(lgm < 128);
     assert(0 < epsilon);
     assert(epsilon < 1);
   }
@@ -63,8 +70,10 @@ struct TailFilter {
   }
 
   void Upsize() {
-    QuotientDysect qd2(lgm_ + epoch_ + 1, 1 + lgme_ - lgm_, 2, 3, 1,
-                       std::max(0, epoch_ + lgm_ - 1 - 3), MultiplyHash);
+    QuotientDysect qd2(qd_.k_ + 1, qd_.v_, qd_.d_, qd_.w_, qd_.s_,
+                       //std::max(qd_.log_little_, epoch_ + lgm_ - 1 - 5),
+                       qd_.log_little_,
+                       MultiplyHash);
     SlotArray sa = (bitset_.Capacity() > 0)
                        ? SlotArray(1, bitset_.Capacity() * 2)
                        : SlotArray();
@@ -93,7 +102,10 @@ struct TailFilter {
 
   bool Insert(uint64_t hash) {
     if (Lookup(hash)) return false;
-    if ((ndv_ > 0) & (0 == (ndv_ & (ndv_ - 1)))) Upsize();
+    if ((ndv_ > (UINT64_C(1) << lgm_)) &&
+        (ndv_ > 0) & (0 == (ndv_ & (ndv_ - 1)))) {
+      Upsize();
+    }
     const uint64_t key = hash >> (CHAR_BIT * sizeof(hash) - lgm_ - epoch_);
     const uint64_t value =
         (hash >> (CHAR_BIT * sizeof(hash) - epoch_ - lgme_)) &
