@@ -136,6 +136,10 @@ struct QuotientDysect {
 
   void Insert(uint64_t key, uint64_t value) {
     //std::cout << "Insert\t" << key << '\t' << value << std::endl;
+    if ((1.0 * capacity_)/ndv_ < 1.2) {
+      const bool ok = Upsize();
+      assert(ok);
+    }
     assert (key < (UINT64_C(1) << k_));
     assert(value < (UINT64_C(1) << v_));
     uint64_t current_key = key;
@@ -143,10 +147,12 @@ struct QuotientDysect {
     uint64_t iterations = 0;
     while (true) {
       ++iterations;
-      if (iterations > 500) {
+      if (iterations > ndv_) {
         // std::cout << "slots per item " << (1.0 * capacity_ / ndv_) << std::endl;
         // std::cout << "Upsize\t" << capacity_ << '\t' << log_little_
         //           << std::endl;
+
+        // TODO: we can pick which slot to upsize, if we want.
         const bool ok = Upsize();
         assert(ok);
         iterations = 0;

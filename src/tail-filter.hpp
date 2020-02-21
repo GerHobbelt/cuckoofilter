@@ -38,7 +38,7 @@ struct TailFilter {
         epoch_(0),
         lgm_(std::max(lgm, 3)),
         lgme_(lgm_ + std::ilogb(1.0 / epsilon)),
-        qd_(lgm_ + epoch_, 1 + lgme_ - lgm_, 2 /* d */, 3 /* w */, 2 /* s */,
+        qd_(lgm_ + epoch_, 1 + lgme_ - lgm_, 2 /* d */, 3 /* w */, 3 /* s */,
             //std::max(0, lgm_ - 1 - 5),
             0,
             MultiplyHash),

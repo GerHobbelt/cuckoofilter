@@ -42,7 +42,7 @@ int main() {
   TailFilter tf(1, 1.0 / 256);
 
   pcg32_random_t rnd = {1, 1};
-  const uint64_t ndv = 1'000'000;
+  const uint64_t ndv = 10'000'000;
   unique_ptr<uint64_t[]> hashes(new uint64_t[ndv]);
 
   for (uint64_t i = 0; i < ndv; ++i) {
@@ -62,9 +62,9 @@ int main() {
 
     //    if (not more_ndv) cout << i << endl;
 
-    for (uint64_t j = 0; j <= i; ++j) {
-      assert(tf.Lookup(hashes[j]));
-    }
+    // for (uint64_t j = 0; j <= i; ++j) {
+    //   assert(tf.Lookup(hashes[j]));
+    // }
 
     if (i >= 949101) {
       assert(tf.Lookup(hashes[949101]));
@@ -75,7 +75,7 @@ int main() {
     assert(tf.Lookup(hashes[i]));
   }
 
-  //return 0;
+  return 0;
   int keylength = 22;
 
   // auto f = new QuotientDysect::HashBijection[1];
