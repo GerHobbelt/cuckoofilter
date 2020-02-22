@@ -97,13 +97,12 @@ struct QuotientDysect {
         log_little_(log_little),
         hash_bijections_(new HashBijection[sizeof...(Ts)]{
             Feistelize(hash_functions, k_)...}) {
-    assert(k_ > 0);
-    assert (v_ >= 0);
-    assert (d_ >= 2);
-    assert (w_ >= 0);
-    assert (s_ >= 0);
-    assert (log_little_ >= 0);
-    assert (hash_bijections_.get() != nullptr);
+    if (not((k_ > 0) && (v_ >= 0) && (d_ >= 2) && (w_ >= 0) && (s_ >= 0) &&
+            (log_little_ >= 0) && (hash_bijections_.get() != nullptr) &&
+            (sizeof...(Ts) + 1 == d_) && (k_ <= 128) && (v_ <= 128) &&
+            (w_ <= 32) && (log_little_ <= 32))) {
+      throw std::range_error("bad arguments");
+    }
     payload_.reset(new std::unique_ptr<SlotArray[]>[d_]);
     for (int p = 0; p < d_; ++p) {
       payload_[p].reset(new SlotArray[UINT64_C(1) << w_]);
@@ -136,7 +135,7 @@ struct QuotientDysect {
 
   void Insert(uint64_t key, uint64_t value) {
     //std::cout << "Insert\t" << key << '\t' << value << std::endl;
-    if ((1.0 * capacity_)/ndv_ < 1.2) {
+    if ((1.0 * capacity_)/ndv_ < 1.05) {
       const bool ok = Upsize();
       assert(ok);
     }

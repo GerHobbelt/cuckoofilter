@@ -39,10 +39,17 @@ uint64_t pcg64(pcg32_random_t* rng) {
 }
 
 int main() {
-  TailFilter tf(1, 1.0 / 256);
+  TailFilter tf(20, 1.0 / 512);
 
   pcg32_random_t rnd = {1, 1};
-  const uint64_t ndv = 10'000'000;
+
+  const uint64_t absent_ndv = 1'000'000;
+  unique_ptr<uint64_t[]> absent(new uint64_t[absent_ndv]);
+  for (uint64_t i = 0; i < absent_ndv; ++i) {
+    absent[i] = pcg64(&rnd);
+  }
+
+  const uint64_t ndv = 128'000'000;
   unique_ptr<uint64_t[]> hashes(new uint64_t[ndv]);
 
   for (uint64_t i = 0; i < ndv; ++i) {
@@ -52,6 +59,17 @@ int main() {
            << "bits per slot " << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / tf.QuotientCapacity())
            << endl
            << "slots per item " << ((1.0 * tf.QuotientCapacity()) / i) << endl;
+      if (i >= 1024) {
+        uint64_t present = 0;
+        for(uint64_t j = 0; j < absent_ndv; ++j) {
+          present += tf.Lookup(absent[j]);
+        }
+        cout << "fpp\t" << ((1.0 * present) / absent_ndv) << endl
+             << "optimal static bits per item\t"
+             << -log2((1.0 * present) / absent_ndv) << endl
+             << "classical BF bits per item\t"
+             << log2(exp(1)) * -log2((1.0 * present) / absent_ndv) << endl;
+      }
     }
     hashes[i] = pcg64(&rnd);
     //const bool more_ndv =
@@ -69,6 +87,23 @@ int main() {
     if (i >= 949101) {
       assert(tf.Lookup(hashes[949101]));
     }
+  }
+
+  cout << "n " << ndv << " or " << tf.QdNdv() << endl
+       << "bits per item " << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / ndv) << endl
+       << "bits per slot "
+       << ((1.0 * tf.SpaceUsed() * CHAR_BIT) / tf.QuotientCapacity()) << endl
+       << "slots per item " << ((1.0 * tf.QuotientCapacity()) / ndv) << endl;
+  if (ndv >= 1024) {
+    uint64_t present = 0;
+    for (uint64_t j = 0; j < absent_ndv; ++j) {
+      present += tf.Lookup(absent[j]);
+    }
+    cout << "fpp\t" << ((1.0 * present) / absent_ndv) << endl
+         << "optimal static bits per item\t"
+         << -log2((1.0 * present) / absent_ndv) << endl
+             << "classical BF bits per item\t"
+         << log2(exp(1)) * -log2((1.0 * present) / absent_ndv) << endl;
   }
 
   for (uint64_t i = 0; i < ndv; ++i) {

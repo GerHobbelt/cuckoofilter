@@ -24,10 +24,24 @@ struct TailFilter {
 
   uint64_t QdNdv() const { return qd_.ndv_; }
 
-  static uint64_t MultiplyHash(uint64_t x) {
+  static uint64_t MultiplyHash1(uint64_t x) {
     unsigned __int128 y = 0x6d064b7e7e084d32;
     y = y << 64;
     y = y | 0xaad87d809dd4d431;
+    return (static_cast<unsigned __int128>(x) * y) >> 64;
+  }
+
+  static uint64_t MultiplyHash2(uint64_t x) {
+    unsigned __int128 y = 0x47125da372064d0d;
+    y = y << 64;
+    y = y | 0xbc4dddd9e3ea0302;
+    return (static_cast<unsigned __int128>(x) * y) >> 64;
+  }
+
+  static uint64_t MultiplyHash3(uint64_t x) {
+    unsigned __int128 y = 0x947e23828e5a48d9;
+    y = y << 64;
+    y = y | 0xa9a544099680ca7e;
     return (static_cast<unsigned __int128>(x) * y) >> 64;
   }
 
@@ -36,12 +50,12 @@ struct TailFilter {
   TailFilter(int lgm, double epsilon)
       : ndv_(0),
         epoch_(0),
-        lgm_(std::max(lgm, 3)),
+        lgm_(std::max(lgm, 5)),
         lgme_(lgm_ + std::ilogb(1.0 / epsilon)),
-        qd_(lgm_ + epoch_, 1 + lgme_ - lgm_, 2 /* d */, 3 /* w */, 3 /* s */,
+        qd_(lgm_ + epoch_, 1 + lgme_ - lgm_, 4 /* d */, 5 /* w */, 2 /* s */,
             //std::max(0, lgm_ - 1 - 5),
             0,
-            MultiplyHash),
+            MultiplyHash1, MultiplyHash2, MultiplyHash3),
         bitset_() {
     assert(lgm > 0);
     assert(lgm < 128);
@@ -73,7 +87,7 @@ struct TailFilter {
     QuotientDysect qd2(qd_.k_ + 1, qd_.v_, qd_.d_, qd_.w_, qd_.s_,
                        //std::max(qd_.log_little_, epoch_ + lgm_ - 1 - 5),
                        qd_.log_little_,
-                       MultiplyHash);
+                       MultiplyHash1, MultiplyHash2, MultiplyHash3);
     SlotArray sa = (bitset_.Capacity() > 0)
                        ? SlotArray(1, bitset_.Capacity() * 2)
                        : SlotArray();
