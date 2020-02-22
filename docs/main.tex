@@ -8,6 +8,8 @@
 \usepackage{cite}
 \usepackage{amsmath}
 \usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+
 \emergencystretch 1em
 
 \begin{document}
@@ -72,6 +74,7 @@ Each key in the universe $U$ is associated with a bitstring of length $\lceil 2 
 %; this is commonly done through hashing.
  % $\lg |U| - \lg \epsilon + c_1$, for some constant $c_1$ to be specified later.
 For the remainder of the paper, we will assume that the keys inserted have random values.
+[TODO: justify this with~\cite{mitzenmacher2008simple}]
 This is frequently done by considering operations on the set $h(U)$, where $h$ is a suitable hash function, rather than $U$.
 For the rest of this paper, the universe $F$ is over will actually be $h(U)$, though we will refer to it as $U$, as we have no more need for the original ``$U$''.
 
@@ -149,6 +152,27 @@ Larger $s$ and $d$ also decrease the cost of {\bf insert} and increase the cost 
 \subsection{Applications}
 
 [TODO: write about Dynamic Bloomier filters, \cite{DBLP:journals/corr/abs-cs-0502032}. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}. Also \url{https://github.com/sparsehash}.]
+
+\section{Linear probing with DySECT}
+
+A similar construction is possible by using linear probing, rather than cuckoo hashing.
+In this construction, we no longer need to set the paremters $d$ and $s$.
+The root of the multimap is a directory containing $2^w$ pointers to linear-probing quotient hash tables, following~\cite{pandey2017general}.
+
+The sub-tables are of unequal capacity, as follows:
+Denote sub-table $i$ by $T_i$ and its capacity as $|T_i|$.
+Fix a constant $\beta > 1$
+At all points in time, there is an $i \in [2^w]$ such that for all $j \in [2^w]$ with $j > i$, $|T_j| = \lfloor \beta | T_{j-1} | \rfloor$.
+Additionally, if $i > 0$, then $|T_0| = \lfloor \beta |T_{2^w-1}| \rfloor$ and for all non-zero $j < i$, $|T_j| = \lfloor \beta | T_{j-1} | \rfloor$.
+
+Following~\cite{pandey2017general}, each subtable needs $2.125$ bits of metadata per slot.
+Unlike~\cite{pandey2017general}, we propose using tables with capacities that are not powers of $2$.
+As a consequence, the remainders (or ``fingerprints'') stored in each slot can waste up to one bit of space.
+This can be relieved following~\cite{trits}, as described in~\cite{10.1007/978-3-030-25027-0_3}.
+
+When a table is over capacity (i.e. the number of filled slots is greater than the capacity over $\alpha$ for some small constant $\alpha > 1$ that is based on $\beta$), we resize it by increasing the size of the smallest subtable $T_i$
+It is increased in size to $\lfloor \beta T_{(i-1) \bmod 2^w} \rfloor$.
+In order to ensure that the multimap does not fill up, we must ensure that none of the sub-tables fills up, for which we use~\cite{raab1998balls}.
 
 \section{The tail filter}
 
@@ -243,6 +267,7 @@ Now oblivious: don't need to know maximum filter size ahead of time.]
 
 \bibliography{main}{}
 \bibliographystyle{alpha}
+%\bibliographystyle{plain}
 \end{document}
 
 %%  LocalWords:  AMQ lookup bitstring bitstrings fpp AMQ's pre DySECT
