@@ -39,11 +39,11 @@ class SimdBlockFilter {
       "Bucket sizing has gone awry.");
 
   // log_num_buckets_ is the log (base 2) of the number of buckets in the directory:
-  const int log_num_buckets_;
+  int log_num_buckets_;
 
   // directory_mask_ is (1 << log_num_buckets_) - 1. It is precomputed in the contructor
   // for efficiency reasons:
-  const uint32_t directory_mask_;
+  uint32_t directory_mask_;
 
   Bucket* directory_;
 
@@ -61,6 +61,9 @@ class SimdBlockFilter {
   void Add(const uint64_t key) noexcept;
   bool Find(const uint64_t key) const noexcept;
   uint64_t SizeInBytes() const { return sizeof(Bucket) * (1ull << log_num_buckets_); }
+  // Doubles the size of the filter, allowing inserts with a slightly lower cost
+  // to the fpp. Returns false on allocation failure.
+  bool DoubleVolume() noexcept;
 
  private:
   // A helper function for Insert()/Find(). Turns a 32-bit hash into a 256-bit Bucket
@@ -70,6 +73,25 @@ class SimdBlockFilter {
   SimdBlockFilter(const SimdBlockFilter&) = delete;
   void operator=(const SimdBlockFilter&) = delete;
 };
+
+template<typename HashFamily>
+bool SimdBlockFilter<HashFamily>::DoubleVolume() noexcept {
+  if (nullptr == directory_) return true;
+  const size_t old_alloc_size = 1ull << (log_num_buckets_ + LOG_BUCKET_BYTE_SIZE);
+  Bucket* new_directory = nullptr;
+  const int malloc_failed = posix_memalign(
+      reinterpret_cast<void **>(&new_directory), 64, 2 * old_alloc_size);
+  if (malloc_failed) return false;
+  memcpy(new_directory, directory_, old_alloc_size);
+  memcpy(new_directory + (old_alloc_size / sizeof(new_directory[0])),
+         directory_, old_alloc_size);
+  ++log_num_buckets_;
+  directory_mask_ = (directory_mask_ << 1) | 1;
+  free(directory_);
+  directory_ = new_directory;
+  return true;
+}
+
 
 template<typename HashFamily>
 SimdBlockFilter<HashFamily>::SimdBlockFilter(const int log_heap_space)

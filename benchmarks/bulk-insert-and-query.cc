@@ -57,6 +57,7 @@
 #include "random.h"
 #include "simd-block.h"
 #include "timing.h"
+#include "growable-simd-block.h"
 
 using namespace std;
 
@@ -151,6 +152,21 @@ struct FilterAPI<SimdBlockFilter<>> {
   }
 };
 
+template <>
+struct FilterAPI<GrowSimdBlockFilter<>> {
+  using Table = GrowSimdBlockFilter<>;
+  static Table ConstructFromAddCount(size_t) {
+    Table ans(1 << 15, 1.0/256);
+    return ans;
+  }
+  static void Add(uint64_t key, Table* table) {
+    table->AddUnique(key);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return table->Find(key);
+  }
+};
+
 template <typename Table>
 Statistics FilterBenchmark(
     size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup) {
@@ -208,11 +224,13 @@ int main(int argc, char * argv[]) {
   const vector<uint64_t> to_add = GenerateRandom64(add_count);
   const vector<uint64_t> to_lookup = GenerateRandom64(SAMPLE_SIZE);
 
-  constexpr int NAME_WIDTH = 13;
+  constexpr int NAME_WIDTH = 18;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
-  auto cf = FilterBenchmark<
+  Statistics cf;
+
+  cf = FilterBenchmark<
       CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
       add_count, to_add, to_lookup);
 
@@ -252,4 +270,8 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
 
+  cf = FilterBenchmark<GrowSimdBlockFilter<>>(
+      add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "GrowableBlock 16k" << cf << endl;
 }
