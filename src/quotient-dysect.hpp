@@ -135,7 +135,7 @@ struct QuotientDysect {
 
   void Insert(uint64_t key, uint64_t value) {
     //std::cout << "Insert\t" << key << '\t' << value << std::endl;
-    if ((1.0 * capacity_)/ndv_ < 1.05) {
+    if ((1.0 * capacity_)/ndv_ < 1.1) {
       const bool ok = Upsize();
       assert(ok);
     }

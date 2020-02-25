@@ -39,7 +39,7 @@ uint64_t pcg64(pcg32_random_t* rng) {
 }
 
 int main() {
-  TailFilter tf(20, 1.0 / 512);
+  TailFilter tf(15, 1.0 / 512);
 
   pcg32_random_t rnd = {1, 1};
 

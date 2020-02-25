@@ -1,6 +1,7 @@
 # Uncomment one of the following to switch between debug and opt mode
 OPT = -O3 -DNDEBUG
-#OPT = -g -ggdb
+#OPT = -g -ggdb -O0
+#CXX = g++-9
 
 CXXFLAGS += -fno-strict-aliasing -Wall -std=c++11 -I. -I../src/ $(OPT) -march=core-avx2
 

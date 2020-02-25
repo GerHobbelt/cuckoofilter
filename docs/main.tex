@@ -170,9 +170,17 @@ Unlike~\cite{pandey2017general}, we propose using tables with capacities that ar
 As a consequence, the remainders (or ``fingerprints'') stored in each slot can waste up to one bit of space.
 This can be relieved following~\cite{trits}, as described in~\cite{10.1007/978-3-030-25027-0_3}.
 
-When a table is over capacity (i.e. the number of filled slots is greater than the capacity over $\alpha$ for some small constant $\alpha > 1$ that is based on $\beta$), we resize it by increasing the size of the smallest subtable $T_i$
+When a multimap is over capacity (i.e. the proportion of filled slots is greater than $\gamma$ for some small constant $\alpha > 1$ that is based on $\beta$ and $w$), we resize the map by increasing the size of the smallest subtable $T_i$.
 It is increased in size to $\lfloor \beta T_{(i-1) \bmod 2^w} \rfloor$.
 In order to ensure that the multimap does not fill up, we must ensure that none of the sub-tables fills up, for which we use~\cite{raab1998balls}.
+That shows that, with probability $1-o(1)$, none of the sub-tables has more than $n2^{-w} + \sqrt{n w 2^{-w+1} \ln 2})$ slots filled, where $n$ is the total number of slots filled.
+
+To keep the smallest table's load factor bounded away from $1$, we need $n2^{-w} + \sqrt{n w 2^{-w+1} \ln 2} < (1 - \delta)|T_i|$ for some constant $\delta > 0$.
+The total number of slots in the map $m$ is $|T_i| \sum_{j=0}^{2^w - 1} \beta^j = |T_i| \left(\frac{\beta^{2^w} - 1}{\beta - 1}\right)$.
+Thus, we have $n2^{-w} + \sqrt{n w 2^{-w+1} \ln 2} < (1 - \delta) m \left(\frac{\beta - 1}{\beta^{2^w} - 1}\right)$.
+Completing the square, this gives $n2^{-w} + \sqrt{n w 2^{-w+1} \ln 2} - (1 - \delta) m \left(\frac{\beta - 1}{\beta^{2^w} - 1}\right) < 0$ and $\sqrt{n} < 2^{w-1}\left(-\sqrt{w 2^{-w+1} \ln 2} + \sqrt{w 2^{-w+1} \ln 2 - 2^{-w+2} (1 - \delta) m \left(\frac{\beta - 1}{\beta^{2^w} - 1}\right)}\right)$
+and so the total multi-map load factor $n/m$ is less than ...
+For $\delta = 0.1$, $w = 5$, and $\beta = 1.01$, this is ...
 
 \section{The tail filter}
 
