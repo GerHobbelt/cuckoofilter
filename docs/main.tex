@@ -164,7 +164,7 @@ This ensures that no tables are full and the whole multi-mpa has occupancy at le
 
 When an item is to be inserted into a sub-table $T_i$ in which $\gamma |T_i|$ items are already present, the table is resized to have $(\gamma / \beta) |T_i|$ slots.
 This adds $O(\gamma / (\gamma - \beta))$ time to each insert.
-Additionally, each insert requires between $(2 - 2\beta e^{1-\beta})^{-1}$ and $(2 - 2\gamma e^{1-\gamma})^{-1}$ item moves on average.
+Additionally, each insert requires between $(2 - 2\beta e^{1-\beta})^{-1}$ and $(2 - 2\gamma e^{1-\gamma})^{-1}$ item moves on average, as described in~\cite{DBLP:journals/corr/abs-1208-0290}.
 
 Following~\cite{pandey2017general}, each sub-table needs $2.125$ bits of metadata per slot.
 Unlike~\cite{pandey2017general}, sub-tables may have capacities that are not powers of $2$.
