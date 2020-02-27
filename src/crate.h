@@ -385,7 +385,7 @@ struct GenericCrate {
     return sizeof(*buckets_) * bucket_count_ + spare_.SizeInBytes();
   }
   GenericCrate(size_t add_count) {
-    bucket_count_ = add_count / 45;
+    bucket_count_ = add_count / 40;
     buckets_ = new __m512i[bucket_count_];
     std::fill(buckets_, buckets_ + bucket_count_,
               __m512i{(INT64_C(1) << 50) - 1, 0, 0, 0, 0, 0, 0, 0});
