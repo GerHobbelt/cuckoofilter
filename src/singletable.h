@@ -27,8 +27,11 @@ class SingleTable {
     char bits_[kBytesPerBucket];
   } __attribute__((__packed__));
 
+ public:
   // using a pointer adds one more indirection
   Bucket *buckets_;
+
+ private:
   size_t num_buckets_;
 
  public:

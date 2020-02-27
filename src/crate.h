@@ -10,11 +10,15 @@
 // 256).
 
 #include <assert.h>
+#include <iostream>
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+#include <unordered_set>
 
 #include "immintrin.h"
+
+#include "linear-probing.h"
 
 // returns the position (starting from 0) of the jth set bit of x.
 inline uint64_t select64(uint64_t x, int64_t j) {
@@ -259,51 +263,51 @@ inline bool pd_find_50_alt5(int64_t quot, uint8_t rem, const __m512i *pd) {
   return (v & ((UINT64_C(1) << end) - 1)) >> begin;
 }
 
-inline uint8_t pd_find_50_x8(__m512i quot, const uint8_t rem[8],
-                             const __m512i *base, __m256i pd_idxs) {
-  uint8_t result = 0;
-  pd_idxs =* sizeof(base[0]);
-  auto pd_idxs_back = pd_idxs + sizeof(uint64_t);
-  __m512i fake_header[2];
-  fake_header[0] = _mm512_i32gather_epi64(pd_idxs, base, 1);
-  fake_header[1] = _mm512_i32gather_epi64(pd_idxs_back, base, 1);
+// inline uint8_t pd_find_50_x8(__m512i quot, const uint8_t rem[8],
+//                              const __m512i *base, __m256i pd_idxs) {
+//   uint8_t result = 0;
+//   pd_idxs =* sizeof(base[0]);
+//   auto pd_idxs_back = pd_idxs + sizeof(uint64_t);
+//   __m512i fake_header[2];
+//   fake_header[0] = _mm512_i32gather_epi64(pd_idxs, base, 1);
+//   fake_header[1] = _mm512_i32gather_epi64(pd_idxs_back, base, 1);
 
-  constexpr uint64_t kLeftoverMaskLo = (UINT64_C(1) << (50 + 51 - 64)) - 1;
-  constexpr __m512i kLeftoverMask = {
-      kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo,
-      kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo};
-  fake_header[0] &= kLeftoverMask;
+//   constexpr uint64_t kLeftoverMaskLo = (UINT64_C(1) << (50 + 51 - 64)) - 1;
+//   constexpr __m512i kLeftoverMask = {
+//       kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo,
+//       kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo, kLeftoverMaskLo};
+//   fake_header[0] &= kLeftoverMask;
 
-  constexpr __m512i ones = {1,1,1,1,1,1,1,1};
-  auto mask = _mm512_srli_epi64(
-      _mm512_sub_epi64(_mm512_sllv_epi64(ones, quot), ones), 1);
-  auto pops = _mm512_popcnt_epi64(fake_header[1] & mask);
+//   constexpr __m512i ones = {1,1,1,1,1,1,1,1};
+//   auto mask = _mm512_srli_epi64(
+//       _mm512_sub_epi64(_mm512_sllv_epi64(ones, quot), ones), 1);
+//   auto pops = _mm512_popcnt_epi64(fake_header[1] & mask);
 
-  __m512i real_header[2];
-  real_header[0] = _mm512_unpackhi_epi64(fake_header[1], fake_header[0]);
-  real_header[1] = _mm512_unpacklo_epi64(fake_header[1], fake_header[0]);
+//   __m512i real_header[2];
+//   real_header[0] = _mm512_unpackhi_epi64(fake_header[1], fake_header[0]);
+//   real_header[1] = _mm512_unpacklo_epi64(fake_header[1], fake_header[0]);
 
-  // STOPPED HERE
+//   // STOPPED HERE
   
-  uint64_t begin = 0;
+//   uint64_t begin = 0;
 
 
-  // & quot with 63 to let remove testb instruction.
-  begin = select64_alt((header << 1) >> (quot & 63), quot - 1 - p);
+//   // & quot with 63 to let remove testb instruction.
+//   begin = select64_alt((header << 1) >> (quot & 63), quot - 1 - p);
 
-  const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
-  assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
-  assert(end == select128(header, quot) - quot);
-  assert(begin <= end);
-  assert(end <= 51);
-  const __m512i target = _mm512_set1_epi8(rem);
-  uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
+//   const uint64_t end = begin + _tzcnt_u64(header >> (begin + quot));
+//   assert(begin == (quot ? (select128(header, quot - 1) + 1) : 0) - quot);
+//   assert(end == select128(header, quot) - quot);
+//   assert(begin <= end);
+//   assert(end <= 51);
+//   const __m512i target = _mm512_set1_epi8(rem);
+//   uint64_t v = _mm512_cmpeq_epu8_mask(target, *pd);
 
-  constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
-  assert(kHeaderBytes < sizeof(header));
-  v = v >> kHeaderBytes;
-  return (v & ((UINT64_C(1) << end) - 1)) >> begin;
-}
+//   constexpr unsigned kHeaderBytes = (50 + 51 + CHAR_BIT - 1) / CHAR_BIT;
+//   assert(kHeaderBytes < sizeof(header));
+//   v = v >> kHeaderBytes;
+//   return (v & ((UINT64_C(1) << end) - 1)) >> begin;
+// }
 
 
 
@@ -376,20 +380,30 @@ template <bool FINDER(int64_t quot, uint8_t rem, const __m512i *pd)>
 struct GenericCrate {
   uint64_t bucket_count_;
   __m512i *buckets_;
-  uint64_t SizeInBytes() const { return sizeof(*buckets_) * bucket_count_; }
+  Dict spare_;
+  uint64_t SizeInBytes() const {
+    return sizeof(*buckets_) * bucket_count_ + spare_.SizeInBytes();
+  }
   GenericCrate(size_t add_count) {
     bucket_count_ = add_count / 45;
     buckets_ = new __m512i[bucket_count_];
     std::fill(buckets_, buckets_ + bucket_count_,
               __m512i{(INT64_C(1) << 50) - 1, 0, 0, 0, 0, 0, 0, 0});
   }
-  ~GenericCrate() { delete[] buckets_; }
+  ~GenericCrate() {
+    std::cout << std::endl
+              << "bucket bytes\t" << sizeof(*buckets_) * bucket_count_ << std::endl
+              << "spare_ bytes\t" << spare_.SizeInBytes() << std::endl;
+    delete[] buckets_;
+  }
   bool Add(uint64_t key) {
-    return pd_add_50(
+    bool result = pd_add_50(
         ((key >> 40) * 50) >> 24, key >> 32,
         &buckets_[(static_cast<uint64_t>(static_cast<uint32_t>(key)) *
                    bucket_count_) >>
                   32]);
+    if (not result) result = spare_.Insert(key);
+    return result;
   }
   bool Contain(uint64_t key) const {
     return FINDER(((key >> 40) * 50) >> 24, key >> 32,
@@ -412,8 +426,13 @@ struct GenericCrate {
     for (int i = 0; i < 64; ++i) {
       result |=
           (static_cast<uint64_t>(FINDER(((keys[i] >> 40) * 50) >> 24,
-                                        keys[i] >> 32, &buckets_[indexes[i]]))
+                                        keys[i] >> 32, &buckets_[indexes[i]]) ||
+                                 (spare_.Contains(keys[i])))
            << i);
+      // result |=
+      //     (static_cast<uint64_t>(FINDER(((keys[i] >> 40) * 50) >> 24,
+      //                                   keys[i] >> 32, &buckets_[indexes[i]]))
+      //      << i);
     }
     return result;
   }
