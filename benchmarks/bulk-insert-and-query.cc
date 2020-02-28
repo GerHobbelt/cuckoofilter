@@ -330,11 +330,11 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "Crate4 x 64 fetch" << cf << endl;
 
-  cf = FilterBenchmark<CuckooBatchPrefetch<uint64_t, 12 /* bits per item */,
-                                           SingleTable /* not semi-sorted*/>,
-                       64>(add_count, to_add, to_lookup);
+  // cf = FilterBenchmark<CuckooBatchPrefetch<uint64_t, 12 /* bits per item */,
+  //                                          SingleTable /* not semi-sorted*/>,
+  //                      64>(add_count, to_add, to_lookup);
 
-  cout << setw(NAME_WIDTH) << "Cuckoo12 x64" << cf << endl;
+  // cout << setw(NAME_WIDTH) << "Cuckoo12 x64" << cf << endl;
 
   // cf = FilterBenchmark<GenericCrate<pd_find_50_alt4>, 64, true>(add_count, to_add, to_lookup);
 

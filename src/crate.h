@@ -380,11 +380,17 @@ template <bool FINDER(int64_t quot, uint8_t rem, const __m512i *pd)>
 struct GenericCrate {
   uint64_t bucket_count_;
   __m512i *buckets_;
-  Dict spare_;
+
+  SimdSizedDict spare_;
+  //SizedDict<uint32_t, uint64_t> spare_;
+  //Dict<uint32_t, uint64_t> spare_;
+
   uint64_t SizeInBytes() const {
     return sizeof(*buckets_) * bucket_count_ + spare_.SizeInBytes();
   }
-  GenericCrate(size_t add_count) {
+  GenericCrate(size_t add_count)
+    : spare_(3.3e-3 * add_count)
+  {
     bucket_count_ = add_count / 40;
     buckets_ = new __m512i[bucket_count_];
     std::fill(buckets_, buckets_ + bucket_count_,
@@ -393,7 +399,8 @@ struct GenericCrate {
   ~GenericCrate() {
     std::cout << std::endl
               << "bucket bytes\t" << sizeof(*buckets_) * bucket_count_ << std::endl
-              << "spare_ bytes\t" << spare_.SizeInBytes() << std::endl;
+              << "spare_ bytes\t" << spare_.SizeInBytes() << std::endl
+              << "spare_ NDV\t" << spare_.ndv_ << std::endl;
     delete[] buckets_;
   }
   bool Add(uint64_t key) {
