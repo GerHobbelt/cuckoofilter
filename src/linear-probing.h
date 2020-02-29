@@ -148,7 +148,9 @@ struct SimdSizedDict {
 
   uint64_t capacity_;
 
-  std::unique_ptr<uint32_t []> payload_;
+  std::unique_ptr<__m512i[]> payload_512_;
+
+  uint32_t *payload_32_;
 
   bool has_zero_;
 
@@ -161,14 +163,17 @@ struct SimdSizedDict {
     return (capacity_ * partial) >> (CHAR_BIT * sizeof(uint32_t));
   }
 
+  static constexpr int kBlockSize = sizeof(__m512i) / sizeof(uint32_t);
+
   explicit SimdSizedDict(uint32_t max_ndv)
       : ndv_(0),
-        capacity_(max_ndv / (0.5) + (sizeof(__m512i) / sizeof(uint32_t))),
-        payload_(new uint32_t[capacity_]()),
+        capacity_((max_ndv / (0.5) + kBlockSize - 1) / kBlockSize),
+        payload_512_(new __m512i[capacity_]()),
+        payload_32_(reinterpret_cast<uint32_t *>(payload_512_.get())),
         has_zero_(false) {}
 
   uint64_t SizeInBytes() const {
-    return sizeof(*this) + sizeof(payload_[0]) * capacity_;
+    return sizeof(*this) + sizeof(payload_512_[0]) * capacity_;
   }
 
   bool Insert(uint32_t x) {
@@ -176,13 +181,15 @@ struct SimdSizedDict {
       has_zero_ = true;
       return true;
     }
+    const __m512i xs = _mm512_set1_epi32(x);
+    const __m512i zeros = _mm512_set1_epi32(0);
     for (uint32_t i = Hash(x); true; i = ((i + 1 >= capacity_) ? 0 : (i + 1))) {
-      if (0 == payload_[i]) {
-        payload_[i] = x;
+      if (_mm512_cmpeq_epu32_mask(payload_512_[i], xs)) return false;
+      const auto m = _mm512_cmpeq_epu32_mask(payload_512_[i], zeros);
+      if (m > 0) {
         ++ndv_;
+        payload_32_[kBlockSize * i + __builtin_ctz(m)] = x;
         return true;
-      } else if (x == payload_[i]) {
-        return false;
       }
     }
   }
@@ -193,16 +200,9 @@ struct SimdSizedDict {
     }
     const __m512i xs = _mm512_set1_epi32(x);
     const __m512i zeros = _mm512_set1_epi32(0);
-    for (uint32_t i = Hash(x); true;
-         i = ((i + sizeof(__m512i) / sizeof(uint32_t) >= capacity_)
-                  ? 0
-                  : (i + sizeof(__m512i) / sizeof(uint32_t)))) {
-      const __m512i data =
-          _mm512_loadu_si512(reinterpret_cast<const __m512i *>(&payload_[i]));
-      if (_mm512_cmpeq_epu32_mask(data, xs)) return true;
-      if (_mm512_cmpeq_epu32_mask(data, zeros)) return false;
-      // if (0 == _mm512_reduce_min_epu32(data)) return false;
-      // _mm512_reduce_mul_epi32
+    for (uint32_t i = Hash(x); true; i = ((i + 1 >= capacity_) ? 0 : (i + 1))) {
+      if (_mm512_cmpeq_epu32_mask(payload_512_[i], xs)) return true;
+      if (_mm512_cmpeq_epu32_mask(payload_512_[i], zeros)) return false;
     }
   }
 };
