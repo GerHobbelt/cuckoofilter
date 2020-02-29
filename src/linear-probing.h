@@ -167,7 +167,7 @@ struct SimdSizedDict {
 
   explicit SimdSizedDict(uint32_t max_ndv)
       : ndv_(0),
-        capacity_((max_ndv / (0.5) + kBlockSize - 1) / kBlockSize),
+        capacity_((max_ndv / (0.95) + kBlockSize - 1) / kBlockSize),
         payload_512_(new __m512i[capacity_]()),
         payload_32_(reinterpret_cast<uint32_t *>(payload_512_.get())),
         has_zero_(false) {}

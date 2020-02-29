@@ -309,7 +309,14 @@ inline bool pd_find_50_alt5(int64_t quot, uint8_t rem, const __m512i *pd) {
 //   return (v & ((UINT64_C(1) << end) - 1)) >> begin;
 // }
 
-
+int pd_popcount(const __m512i *pd) {
+  uint64_t header_end;
+  memcpy(&header_end, reinterpret_cast<const uint64_t *>(pd) + 1,
+         sizeof(header_end));
+  constexpr uint64_t kLeftoverMask = (UINT64_C(1) << (50 + 51 - 64)) - 1;
+  header_end = header_end & kLeftoverMask;
+  return 128 - 51 - _lzcnt_u64(header_end);
+}
 
 // insert a pair of a quotient (mod 50) and an 8-bit remainder in a pocket
 // dictionary. Returns false if the dictionary is full.
@@ -382,6 +389,15 @@ struct GenericCrate {
   __m512i *buckets_;
 
   SimdSizedDict spare_;
+  // 3.3e-3 for fill 40
+  // 4.6e-3 for fill 41
+  // 7e-3 for fill 42
+  // 0.01 for fill 43
+  // 0.013 for fill 44
+  // 0.0165 for fill 45
+  // 0.021 for fill 46
+  // 0.026 for fill 46
+  
   //SizedDict<uint32_t, uint64_t> spare_;
   //Dict<uint32_t, uint64_t> spare_;
 
@@ -389,9 +405,9 @@ struct GenericCrate {
     return sizeof(*buckets_) * bucket_count_ + spare_.SizeInBytes();
   }
   GenericCrate(size_t add_count)
-    : spare_(3.3e-3 * add_count)
+      : spare_(0.013 * add_count)
   {
-    bucket_count_ = add_count / 40;
+    bucket_count_ = add_count / 44;
     buckets_ = new __m512i[bucket_count_];
     std::fill(buckets_, buckets_ + bucket_count_,
               __m512i{(INT64_C(1) << 50) - 1, 0, 0, 0, 0, 0, 0, 0});
@@ -431,11 +447,12 @@ struct GenericCrate {
     }
     uint64_t result = 0;
     for (int i = 0; i < 64; ++i) {
-      result |=
-          (static_cast<uint64_t>(FINDER(((keys[i] >> 40) * 50) >> 24,
-                                        keys[i] >> 32, &buckets_[indexes[i]]) ||
-                                 (spare_.Contains(keys[i])))
-           << i);
+      uint64_t found = FINDER(((keys[i] >> 40) * 50) >> 24, keys[i] >> 32,
+                              &buckets_[indexes[i]]);
+      if (0 == found && 51 == pd_popcount(&buckets_[indexes[i]])) {
+        found |= static_cast<bool>(spare_.Contains(keys[i]));
+      }
+      result |= found << i;
       // result |=
       //     (static_cast<uint64_t>(FINDER(((keys[i] >> 40) * 50) >> 24,
       //                                   keys[i] >> 32, &buckets_[indexes[i]]))
