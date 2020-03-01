@@ -167,7 +167,7 @@ struct SimdSizedDict {
 
   explicit SimdSizedDict(uint32_t max_ndv)
       : ndv_(0),
-        capacity_((max_ndv / (0.95) + kBlockSize - 1) / kBlockSize),
+        capacity_((max_ndv / (0.8) + kBlockSize - 1) / kBlockSize),
         payload_512_(new __m512i[capacity_]()),
         payload_32_(reinterpret_cast<uint32_t *>(payload_512_.get())),
         has_zero_(false) {}
@@ -198,9 +198,13 @@ struct SimdSizedDict {
     if (0 == x) {
       return has_zero_;
     }
+    return ContainsKeyWithHash(x, Hash(x));
+  }
+
+  bool ContainsKeyWithHash(uint32_t x, uint32_t hash) const {
     const __m512i xs = _mm512_set1_epi32(x);
     const __m512i zeros = _mm512_set1_epi32(0);
-    for (uint32_t i = Hash(x); true; i = ((i + 1 >= capacity_) ? 0 : (i + 1))) {
+    for (uint32_t i = hash; true; i = ((i + 1 >= capacity_) ? 0 : (i + 1))) {
       if (_mm512_cmpeq_epu32_mask(payload_512_[i], xs)) return true;
       if (_mm512_cmpeq_epu32_mask(payload_512_[i], zeros)) return false;
     }

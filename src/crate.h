@@ -315,7 +315,15 @@ int pd_popcount(const __m512i *pd) {
          sizeof(header_end));
   constexpr uint64_t kLeftoverMask = (UINT64_C(1) << (50 + 51 - 64)) - 1;
   header_end = header_end & kLeftoverMask;
-  return 128 - 51 - _lzcnt_u64(header_end);
+  const int result = 128 - 51 - _lzcnt_u64(header_end) + 1;
+  return result;
+}
+
+bool pd_full(const __m512i *pd) {
+  uint64_t header_end;
+  memcpy(&header_end, reinterpret_cast<const uint64_t *>(pd) + 1,
+         sizeof(header_end));
+  return 1 & (header_end >> (50 + 51 - 64 - 1));
 }
 
 // insert a pair of a quotient (mod 50) and an 8-bit remainder in a pocket
@@ -339,6 +347,8 @@ inline bool pd_add_50(int64_t quot, uint8_t rem, __m512i *pd) {
   header = header & kLeftoverMask;
   assert(50 == popcount128(header));
   const unsigned fill = select128(header, 50 - 1) - (50 - 1);
+  assert((fill <= 14) || (fill == pd_popcount(pd)));
+  assert((fill == 51) == pd_full(pd));
   if (fill == 51) return false;
   // [begin,end) are the zeros in the header that correspond to the fingerprints
   // with quotient quot.
@@ -397,7 +407,7 @@ struct GenericCrate {
   // 0.0165 for fill 45
   // 0.021 for fill 46
   // 0.026 for fill 46
-  
+
   //SizedDict<uint32_t, uint64_t> spare_;
   //Dict<uint32_t, uint64_t> spare_;
 
@@ -446,18 +456,30 @@ struct GenericCrate {
                          0 /*non-temporal */);
     }
     uint64_t result = 0;
+    uint64_t try_backup = 0;
     for (int i = 0; i < 64; ++i) {
       uint64_t found = FINDER(((keys[i] >> 40) * 50) >> 24, keys[i] >> 32,
                               &buckets_[indexes[i]]);
-      if (0 == found && 51 == pd_popcount(&buckets_[indexes[i]])) {
-        found |= static_cast<bool>(spare_.Contains(keys[i]));
+      if (0 == found && pd_full(&buckets_[indexes[i]])) {
+        if (0 == keys[i]) {
+          result |= static_cast<uint64_t>(spare_.has_zero_) << i;
+        } else {
+          try_backup |= (UINT64_C(1) << i);
+          indexes[i] = spare_.Hash(keys[i]);
+          __builtin_prefetch(&spare_.payload_512_[indexes[i]],
+                             0 /* read only */, 0 /*non-temporal */);
+        }
       }
       result |= found << i;
-      // result |=
-      //     (static_cast<uint64_t>(FINDER(((keys[i] >> 40) * 50) >> 24,
-      //                                   keys[i] >> 32, &buckets_[indexes[i]]))
-      //      << i);
     }
+    while (try_backup > 0) {
+      auto i = _tzcnt_u64(try_backup);
+      result |=
+          (static_cast<bool>(spare_.ContainsKeyWithHash(keys[i], indexes[i]))
+           << i);
+      try_backup = try_backup & (try_backup - 1);
+    }
+
     return result;
   }
 
