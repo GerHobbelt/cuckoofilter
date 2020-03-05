@@ -1,5 +1,5 @@
 # Uncomment one of the following to switch between debug and opt mode
-OPT = -O3 -DNDEBUG
+OPT = -O3 -DNDEBUG -ggdb3
 #OPT = -g -ggdb -O0
 #CXX = g++-9
 

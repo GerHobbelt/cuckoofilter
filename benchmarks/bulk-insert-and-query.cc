@@ -54,10 +54,11 @@
 #include <vector>
 
 #include "cuckoofilter.h"
+#include "growable-simd-block.h"
 #include "random.h"
 #include "simd-block.h"
+#include "tail-filter.hpp"
 #include "timing.h"
-#include "growable-simd-block.h"
 
 using namespace std;
 
@@ -167,6 +168,21 @@ struct FilterAPI<GrowSimdBlockFilter<>> {
   }
 };
 
+template <>
+struct FilterAPI<TailFilter> {
+  using Table = TailFilter;
+  static Table ConstructFromAddCount(size_t add_count) {
+    Table ans(1, 1.0 / 1024);
+    return ans;
+  }
+  static void Add(uint64_t key, Table* table) {
+    table->Insert(key);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return table->Lookup(key);
+  }
+};
+
 template <typename Table>
 Statistics FilterBenchmark(
     size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup) {
@@ -224,7 +240,7 @@ int main(int argc, char * argv[]) {
   const vector<uint64_t> to_add = GenerateRandom64(add_count);
   const vector<uint64_t> to_lookup = GenerateRandom64(SAMPLE_SIZE);
 
-  constexpr int NAME_WIDTH = 18;
+  constexpr int NAME_WIDTH = 20;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
@@ -235,6 +251,10 @@ int main(int argc, char * argv[]) {
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
+
+  cf = FilterBenchmark<TailFilter>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Tail Filter" << cf << endl;
 
   cf = FilterBenchmark<
       CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(

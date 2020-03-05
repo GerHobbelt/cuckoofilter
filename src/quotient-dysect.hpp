@@ -5,8 +5,6 @@
 
 #include "slot-array.hpp"
 
-
-
 struct QuotientDysect {
   uint64_t ndv_, capacity_;
 

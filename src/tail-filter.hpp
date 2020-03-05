@@ -22,6 +22,8 @@ struct TailFilter {
     return qd_.SpaceUsed() + bitset_.SpaceUsed() + sizeof(*this);
   }
 
+  uint64_t SizeInBytes() const { return SpaceUsed(); }
+
   uint64_t QdNdv() const { return qd_.ndv_; }
 
   static uint64_t MultiplyHash1(uint64_t x) {
