@@ -32,6 +32,9 @@ test_bench: example/test_bench.o $(LIBOBJECTS)
 test_bench_xor: example/test_bench_xor.o $(LIBOBJECTS)
 	$(CC) example/test_bench_xor.o $(LIBOBJECTS) $(LDFLAGS) -o $@
 
+test1: example/test1.o $(LIBOBJECTS)
+	$(CC) example/test1.o $(LIBOBJECTS) $(LDFLAGS) -o $@
+
 %.o: %.cc ${HEADERS} Makefile
 	$(CC) $(CFLAGS) $< -o $@
 
