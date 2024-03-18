@@ -63,7 +63,7 @@ class TwoIndependentMultiplyShift {
     }
   }
 
-  uint64_t operator()(uint64_t key) const {
+  inline uint64_t operator()(uint64_t key) const {
 	  return (add_ + multiply_ * static_cast<decltype(multiply_)>(key)) >> 64;
   }
 #else
@@ -83,12 +83,38 @@ public:
 		}
 	}
 
-	uint64_t operator()(uint64_t key) const {
+	inline uint64_t operator()(uint64_t key) const {
 		uint64_t lsw = term[0] + ((term[1] * static_cast<decltype(term[1])>(key)) >> 32);
 		uint64_t msw = term[2] + ((term[3] * static_cast<decltype(term[3])>(key)) >> 32);
 		return lsw | (msw << 32);
 	}
 #endif
+};
+
+
+class SimpleMixSplit {
+  uint64_t seed;
+
+ public:
+  SimpleMixSplit() {
+    ::std::random_device random;
+    seed = random();
+    seed <<= 32;
+    seed |= random();
+  }
+
+  inline static uint64_t murmur64(uint64_t h) {
+    h ^= h >> 33;
+    h *= UINT64_C(0xff51afd7ed558ccd);
+    h ^= h >> 33;
+    h *= UINT64_C(0xc4ceb9fe1a85ec53);
+    h ^= h >> 33;
+    return h;
+  }
+
+  inline uint64_t operator()(uint64_t key) const {
+    return murmur64(key + seed);
+  }
 };
 
 // See Patrascu and Thorup's "The Power of Simple Tabulation Hashing"
@@ -105,7 +131,7 @@ class SimpleTabulation {
     }
   }
 
-  uint64_t operator()(uint64_t key) const {
+  inline uint64_t operator()(uint64_t key) const {
     uint64_t result = 0;
     for (unsigned i = 0; i < sizeof(key); ++i) {
       result ^= tables_[i][reinterpret_cast<uint8_t *>(&key)[i]];
