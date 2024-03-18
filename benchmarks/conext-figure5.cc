@@ -14,6 +14,7 @@
 #include <climits>
 #include <iomanip>
 #include <vector>
+#include <array>
 
 #include "cuckoofilter.h"
 #include "random.h"
