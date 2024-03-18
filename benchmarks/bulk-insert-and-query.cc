@@ -54,8 +54,10 @@
 #include <vector>
 
 #include "cuckoofilter.h"
+#include "growable-simd-block.h"
 #include "random.h"
 #include "simd-block.h"
+#include "tail-filter.hpp"
 #include "timing.h"
 
 using namespace std;
@@ -151,6 +153,36 @@ struct FilterAPI<SimdBlockFilter<>> {
   }
 };
 
+template <>
+struct FilterAPI<GrowSimdBlockFilter<>> {
+  using Table = GrowSimdBlockFilter<>;
+  static Table ConstructFromAddCount(size_t) {
+    Table ans(1 << 15, 1.0/256);
+    return ans;
+  }
+  static void Add(uint64_t key, Table* table) {
+    table->AddUnique(key);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return table->Find(key);
+  }
+};
+
+template <>
+struct FilterAPI<TailFilter> {
+  using Table = TailFilter;
+  static Table ConstructFromAddCount(size_t add_count) {
+    Table ans(1, 1.0 / 1024);
+    return ans;
+  }
+  static void Add(uint64_t key, Table* table) {
+    table->Insert(key);
+  }
+  static bool Contain(uint64_t key, const Table * table) {
+    return table->Lookup(key);
+  }
+};
+
 template <typename Table>
 Statistics FilterBenchmark(
     size_t add_count, const vector<uint64_t>& to_add, const vector<uint64_t>& to_lookup) {
@@ -208,15 +240,21 @@ int main(int argc, char * argv[]) {
   const vector<uint64_t> to_add = GenerateRandom64(add_count);
   const vector<uint64_t> to_lookup = GenerateRandom64(SAMPLE_SIZE);
 
-  constexpr int NAME_WIDTH = 13;
+  constexpr int NAME_WIDTH = 20;
 
   cout << StatisticsTableHeader(NAME_WIDTH, 5) << endl;
 
-  auto cf = FilterBenchmark<
+  Statistics cf;
+
+  cf = FilterBenchmark<
       CuckooFilter<uint64_t, 12 /* bits per item */, SingleTable /* not semi-sorted*/>>(
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "Cuckoo12" << cf << endl;
+
+  cf = FilterBenchmark<TailFilter>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "Tail Filter" << cf << endl;
 
   cf = FilterBenchmark<
       CuckooFilter<uint64_t, 13 /* bits per item */, PackedTable /* semi-sorted*/>>(
@@ -252,4 +290,8 @@ int main(int argc, char * argv[]) {
 
   cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
 
+  cf = FilterBenchmark<GrowSimdBlockFilter<>>(
+      add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "GrowableBlock 16k" << cf << endl;
 }

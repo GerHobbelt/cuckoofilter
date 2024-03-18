@@ -9,3 +9,10 @@
 *.o
 *.so
 test
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.pdf
+*.blg
+*.bbl

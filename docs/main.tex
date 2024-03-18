@@ -1,0 +1,273 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=0.75in, bottom=1.25in]{geometry}
+%\linespread{1.5}
+\usepackage[T1]{fontenc}
+\usepackage[bitstream-charter]{mathdesign}
+%\usepackage{amsfonts}
+%\usepackage{amssymb}
+\usepackage{cite}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+
+\emergencystretch 1em
+
+\begin{document}
+\title{Tail Filters}
+\author{Jim Apple}
+\maketitle
+
+\section{Introduction}
+
+We will discuss {\em approximate membership query} (or {\em ``AMQ''}) data structures.
+An instance of an AMQ is an over-approximation of a set $S$, and is equipped with a {\bf lookup} operation that returns {\bf true} for any key in $S$ and {\bf false} with high probability for any key not in $S$.
+
+\section{Notation}
+
+If not otherwise specified, $U$ is a finite universe of keys, $F$ is an AMQ, $x \in U$ is a key, $s$ is a bitstring, $m$, $n$, and $i$ are non-negative integers, and $0 < \epsilon < 1$.
+The size of a set $Y$ is denoted ``$|Y|$''; the length of a bitstring $s$ is also denoted $|s|$.
+The binary logarithm $\log_2$ is denoted ``$\lg$''.
+$\lfloor r \rfloor$ is the largest integer less than or equal to $r$.
+%$\widehat{n}$ is $\{0, 1, \dots , 2^n - 1\}$, which is isomorphic with the set of bitstrings of length $n$.
+
+Any function $f: P \to Q$ can be extended to a function from subsets of $P$ to subsets of $Q$ by $f(P) \triangleq \{ q \in Q: \exists p \in P, f(p) = q\}$.
+
+$[n]$ denotes $\{0, 1, \dots n - 1 \}$.
+Note that $[2^n]$ is trivially isomorphic to bitstrings of length $n$.
+In an abuse of notation, when $n$ is implicit, values in $[2^n]$ and their equivalent bitstrings will be interchangable.
+Similarly, ``$[2^n]$'' will sometimes denote the set of bitstrings of length $n$, rather than $\{0, 1, \dots, 2^n - 1\}$.
+
+%% ; we'll call this isomorphism $v$.
+%% The set of bitstrings of length $n$ can thus be denoted ``$v^{-1}[2^n]$''.
+%% In an abuse of notation, $v^{-1}[2^n]$ will sometimes be denoted simply ``$[2^n]$''.
+
+%% There also exists an injection, $w$, from the set of bitstrings $\cup_{i \in [n]} [2^i]$ to $[2^n]$ by $w(m \in [2^i]) = v(2^i + v^{-1}(m))$.
+%% This representation is not surjective due to a single value of $[2^n]$ that has no pre-image: the bitstring consisting of all zeros
+
+The set of bitstrings of length less than $n$,  $\bigcup_{i < n} [2^i]$, is isomorphic to $[2^n]$ via $(m \in [2^i]) \mapsto 2^i + m$.
+This representation is not surjective due to a single value of $[2^n]$ that has no pre-image: $0$.
+This value can be repurposed so that any value in $[2^n]$ can be thought of either as being absent or a bitstring of length less than $n$.
+
+For any non-negative integer $b$, let ``$b[p,q)$'' denote the bits in $b$ at locations $p, \dots, q-1$, numbering from zero, i.e. $\lfloor (b - \lfloor b/2^q \rfloor 2^q)/2^p \rfloor$
+
+Each AMQ $F$ represents a subset of $U$.
+The subset of $U$ represented by a structure $F$ is denoted $[F]$.
+The size of the subset relative to the whole universe, $|[F]|/|U|$, is called the {\em false positive probability}, or {\em ``fpp''}.
+
+The AMQ's discussed here support at least the following three operations:
+
+\begin{description}
+\item[initialize$(m, \epsilon)$] creates a structure.
+  $m$ is the initial pre-allocated space of the data structure, such that $m$ calls to {\bf insert} can be made before more space needs to be allocated;
+  $\epsilon$ is the initial fpp maximum, such that $m$ calls to {\bf insert} can be made before the fpp exceeds $\epsilon$.
+\item[insert$(x)$] adds the key $x$ to $F$ such that $x \in [F]$.
+  It might increase the fpp or the space usage of $F$, or both.
+\item[lookup$(x)$] returns {\bf true} if $x \in [F]$.
+  In the reverse direction, $[F]$ can be defined as $\{x \in U : {\bf insert}(x) = {\bf true}\}$.
+  Note that if $x \in [F]$, it need not have been {\bf insert}ed, since $[F]$ is an over-approximation of the set of insert keys.
+\end{description}
+
+Using low-overhead dictionaries like the one described below, any subset of $U$ of size $n$ can be stored exactly (i.e. with fpp $n/U$) in $O(n \lg (|U|/n))$.
+As such, we'll assume all calls to {\bf initialize} have $\epsilon > 1/|U|$.
+
+Each key in the universe $U$ is associated with a bitstring of length $\lceil 2 \lg |U| \rceil$.
+%; this is commonly done through hashing.
+ % $\lg |U| - \lg \epsilon + c_1$, for some constant $c_1$ to be specified later.
+For the remainder of the paper, we will assume that the keys inserted have random values.
+[TODO: justify this with~\cite{mitzenmacher2008simple}]
+This is frequently done by considering operations on the set $h(U)$, where $h$ is a suitable hash function, rather than $U$.
+For the rest of this paper, the universe $F$ is over will actually be $h(U)$, though we will refer to it as $U$, as we have no more need for the original ``$U$''.
+
+The main challenge of this work is to keep all of the following low:
+
+\begin{enumerate}
+\item The fpp of $F$
+\item The number of bits needed to store $F$
+\item The time complexities of {\bf insert} and {\bf lookup}
+\end{enumerate}
+
+\section{Practical quotienting dictionaries with continual minimal overhead}
+
+In this section, we'll show a practical data structure that can store a multi-map from bitstrings to bitstrings.
+The basic structure follows that of dynamic space efficient cuckoo tables~\cite{maier2019dynamic}, which shows the space can be as low as 3\% more than the minimum while {\bf lookup} inspects no more than three cache lines.
+In their experiments, {\bf lookup}s take 100 nanoseconds on average and {\bf insert}s take 300 nanoseconds, when the filter is 90\% full.
+
+The central idea of~\cite{maier2019dynamic} is to store not one cuckoo hash table of a certain capacity, but several sub-tables of varying capacity.
+The candidate slots of a key may be in distinct sub-tables.
+When the map is nearly full, one of the sub-tables is doubled in capacity.
+Since this doesn't double the space usage of whole table, the space usage increases by much less than the 100\% increase when doing traditional hash table capacity doubling.
+The {\bf insert} operation will often succeed only by finding a path of keys to kick that ends in a sub-table recently doubled in capacity.
+%Increasing the number of sub-tables decreases the maximum number of empty slots needed in order to accomodate a series of {\bf insert}s calls
+%; \cite{maier2019dynamic} uses 256 tables, buckets of size 8, and 3 possible buckets per key.
+
+We map from $n$ random keys that are $k$ bits in length to $v$-bit values (excluding the value $0$).
+The value $0$ is used to indicate an empty slot.
+
+Let $s \geq 0$ be an integral number of shingle bits, following~\cite{lehman20093}; each slot will store $s$ bits to indicate its offset, creating overlapping buckets of capacity $2^s$.
+Let $\alpha > 1$ be the maximum number of slots, as a factor of $n$, the number of key-value pairs.
+A low $\alpha$ is desirable, but this is a derived, rather than a specified constant, and is limited by the constraints of the cuckoo hypergraph.
+
+We store $d$ directories, each containing $2^w$ pointers to sub-tables.
+Each sub-table has a capacity that is a power of two, and there are at most two different sub-table capacities present in the directory at one time.
+If there are two different capacities, they differ by a factor of two.
+In a sub-table with $2^l$ slots, the slots have bitlength $s + v + \max(0,k - w - l)$.
+
+Let $2^l$ be the smaller sub-table capacity.
+Then the capacity of the whole multi-map is between $2^{l+w}d$ (when all of the tables have the same capacity) and $2^l + 2^{l+1}(d 2^w - 1)$ (when all other tables have larger capacity).
+Since the capacity is also between $n$ and $\alpha n$, we have $\lg (n/d) - 1 \leq l + w \leq \lg(n/d) + \lg \alpha$.
+When $l$ is the larger sub-table capacity, we have $\lg (n/d) \leq l + w \leq \lg (n/d) + \lg \alpha + 1$.
+
+Let $x$ be a key.
+We will describe how to find the values associated with $x$.
+The notation ``$m[p]$'' will denote the $p$th directory, ``$m[p][q]$'' the $q$th sub-table of that directory, and ``$m[p][q][r]$'' the $r$th slot of that sub-table.
+The capacity of $m[p][q]$ is denoted ``$|m[p][q]|$''.
+
+For all $0 < i < d$, let $h_i$ be a hash function and a permutation on $[2^k]$.
+Let $x_0 = x$ and $x_i = h_i(x)$.
+
+Denote $m[i][x_i[k-w,k)]$ by $t_i$.
+Let $z_i = \{x_i[k - w - \lg |t_i|, k - w) 2^{\max(0,w + \lg |t_i| - k)} + j : j < 2^{\max(0,w + \lg |t_i| - k)}\}$ be a set of slots in $t_i$.
+
+The values associated with $x_i$ are derived from $r_{i,j} = \{t_i[(z  + j) \bmod |t_i|] : z \in z_i\}$ for $0 \leq j < 2^s$.
+The values associated with $x_i$ are derived from the values in $r_{i,j}$ as follows:
+
+\begin{displaymath}
+  \begin{array}{llll}
+    y_i = \{r[s, s+v) & : & r \in r_{i,j} & \qquad \\
+      &    \land & r[0,s) = j & \\
+        &  \land & r[s+v,s + v + \max(0,k - w - \lg |t_i|)) = x_i[0, \max(0,k - w - \lg |t_i|))\} &
+  \end{array}
+\end{displaymath}
+
+The values associates with $x$ are $\cup_i y_i$, of which there are at most $d2^{s + \max(0,w + \lg |t_i| - k)}$, which is at most  $d2^{s + \max(0,\lg(n/d) + \lg \alpha + 1 - k)}$
+
+The total space usage for multi-map data includes the slots plus at most $d 2^w$ pointers to the sub-tables, plus $d 2^w$ bits (one for each sub-table to indicate if it is ``small''), plus $\lg l \leq \lg (\lg \alpha + \lg (N/d))$ bits to store the size of the small sub-tables, where $2^l$ is the capacity of the ``small'' sub-tables and $N$ is the largest number of keys the multi-map will ever contain.
+The slots themselves occupy $\alpha n (s + v + \max(0, k - w - l))$ bits, where $2^l$ is the capacity of the small sub-tables.
+This is at most $\alpha n (s + v + k - \lg n + \lg d + 1)$.
+
+The number of empty slots, and thus $\alpha$, can be reduced by increasing $s$ and $d$, but increasing those also increases the number of bits used per slot.
+Larger $s$ and $d$ also decrease the cost of {\bf insert} and increase the cost of {\bf lookup}.
+
+
+\subsection{Applications}
+
+[TODO: write about Dynamic Bloomier filters, \cite{DBLP:journals/corr/abs-cs-0502032}. Any paper citing Raman \& Rao~\cite{raman2003succinct}, or backyard cuckoo hashing~\cite{DBLP:journals/corr/abs-0912-5424}, or De Dictionariis Dynamicis Pauco Spatio Utentibus~\cite{DBLP:journals/corr/abs-cs-0512081}. Also \url{https://github.com/sparsehash}.]
+
+\section{Linear probing with DySECT}
+
+A similar construction is possible by using linear probing, rather than cuckoo hashing.
+In this construction, we no longer need to set the paremters $d$ and $s$.
+The root of the multimap is a directory containing $2^w$ pointers to linear-probing quotient hash tables, following~\cite{pandey2017general}.
+
+Any sub-table $T_i$ has between $\beta |T_i|$ and $\gamma |T_i|$ items in it, where $|T_i|$ is the number of slots and $\beta < \gamma < 1$.
+This ensures that no tables are full and the whole multi-mpa has occupancy at least $\beta$.
+
+When an item is to be inserted into a sub-table $T_i$ in which $\gamma |T_i|$ items are already present, the table is resized to have $(\gamma / \beta) |T_i|$ slots.
+This adds $O(\gamma / (\gamma - \beta))$ time to each insert.
+Additionally, each insert requires between $(2 - 2\beta e^{1-\beta})^{-1}$ and $(2 - 2\gamma e^{1-\gamma})^{-1}$ item moves on average, as described in~\cite{DBLP:journals/corr/abs-1208-0290}.
+
+Following~\cite{pandey2017general}, each sub-table needs $2.125$ bits of metadata per slot.
+Unlike~\cite{pandey2017general}, sub-tables may have capacities that are not powers of $2$.
+As a consequence, the remainders (or ``fingerprints'') stored in each slot can waste up to one bit of space.
+This can be relieved following~\cite{trits}, as described in~\cite{10.1007/978-3-030-25027-0_3}.
+
+\section{The tail filter}
+
+The {\em tail filter} is based on the design of the filter in Pagh et al.~\cite{DBLP:journals/corr/abs-1304-1188}
+
+In this section, we'll first describe the abstract semantics of tail filters, using this to show their fpp.
+This semantics will equate a tail filter with a set of bitstrings of varying lengths.
+After that, we'll describe a mechanism for storing the bitstrings associated with a tail filter in a way that has low space usage and operation time complexity.
+
+\subsection{The abstract semantics of tail filters}
+
+An abstract tail filter $F$ consists of a positive integer $m$, a real number $0 < \epsilon < 1$, and a set of bitstrings of varying lengths. %, and its fpp increases as it grows.
+The subset of $U$ it represents, $[F]$, is defined as $\{x \in U : \exists y \in F, y \textrm{ is a prefix of } x\}$.
+If any bitstring $x$ in $F$ is a prefix of another bitstring $y$ in $F$, $y$ can be removed from $F$ without changing $[F]$, so wlog, we can assume $F$ is {\em ''prefix-free''}: no bitstring in $F$ is a prefix of any other bitstring in $F$.
+
+% TODO: what about removing bitstrings when a shorter one is inserted? Good news: we only ever insert longer ones
+
+Abstract tail filters have restrictions on the number of strings of each length.
+Let $n$ be the number of bitstrings in $F$.
+The shortest bitstring has length $\lfloor \lg (m / \epsilon) \rfloor$ and the longest has length $\lfloor \lg (n/m) \rfloor + \lfloor \lg (m / \epsilon) \rfloor$.
+This last value is guaranteed to be less than $\lceil 2 \lg |U| \rceil$, since $\epsilon > 1/|U|$.
+
+\begin {itemize}
+\item $m$ bitstrings have length $\lfloor \lg (m / \epsilon) \rfloor$
+\item For each $0 < j < \lfloor \lg (n/m) \rfloor $, $m2^{j-1}$ bitstrings have length $j + \lfloor \lg (m / \epsilon) \rfloor$.
+\item $n - m2^{\lfloor \lg (n/m) \rfloor}$ bitstrings have length $1 + \lfloor \lg (n/m) \rfloor  + \lfloor \lg (m / \epsilon) \rfloor$.
+\end {itemize}
+
+The items with a length $j + \lfloor \lg (m / \epsilon) \rfloor$ are said to be in {\em ``cohort''} $j$.
+Each bitstring in cohort $j$ adds $2^{- j - \lfloor \lg (m / \epsilon) \rfloor}$ to the fpp, so the full cohort adds $m2^{- \lfloor \lg (m / \epsilon) \rfloor}$ to the fpp.
+Each additional cohort $j$, excluding $j = \lfloor \lg (n/m) \rfloor$, adds $m 2^{j-1} 2^{-j - \lfloor \lg (m / \epsilon) \rfloor} = (m/2) 2^{-\lfloor \lg (m / \epsilon) \rfloor}$ to the fpp.
+The last cohort adds less than or equal to $(m/2) 2^{-\lfloor \lg (m / \epsilon) \rfloor}$, since $n - m 2^{\lfloor \lg (n/m) \rfloor} \leq m 2^{\lfloor \lg(n/m)\rfloor}$.
+The sum total fpp is $m 2^{- \lfloor \lg (m / \epsilon) \rfloor} (1 + \lfloor \lg (n/m) \rfloor)$, which is less than
+
+\begin{equation}
+  2 \epsilon (1 + \lfloor \lg (n/m) \rfloor)
+\end{equation}
+
+\subsection{Implementing tail filters}
+
+The tail filter implementation tracks, in addition to $m$, $\epsilon$, and the cohort number, two data structures.
+
+One structure stores all bitstrings in $F$ that have length greater than or equal to $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$.
+They are stored in a map in which the keys are values from $[2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor}]$ and the values are bitstrings of length up to $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor$, embedded in bitstrings of length exactly $\lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor + 1$ as described earlier.
+Using a quotient DySECT dictionary, this can be stored in at most $\alpha n (\lg (1/\epsilon) + O(1))$ bits of space, where $\alpha$ and the hidden constant are inversely proportional.
+
+
+The second structure is present if there are any bitstrings shorter than $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$.
+Those are embedded in a bitset of length $2^{\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1}$ as follows:
+each slot in the bitset is interpreted as a bitstring $s$ of length exactly $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1$, and is set to {\bf true} if and only if there is any bitstring in $F$ that is a prefix of it.
+Note that if there is any bitstring $x \in F$ that is a prefix of a bitstring of length exactly $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1$, then $x$ has length at most $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1$.
+
+To perform {\bf lookup$(x)$}, both parts of the tail filter are consulted.
+In the dictionary part, the first $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$ bits of $x$ are looked up in the map.
+If one or more items in the dictionary has that key, each value is inspected to see if it is a prefix of the next $\lfloor \lg(m/\epsilon) \rfloor - \lfloor \lg m \rfloor$ bits of $x$.
+If any do, then {\bf lookup} returns {\bf true}.
+Otherwise, the bit in the bitset at the location that corresponds to the first $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor - 1$ bits of $x$ is returned.
+
+To perform {\bf insert$(x)$} on a structure in which cohort $\lfloor \lg (n/m) \rfloor$ is not full, $x$ is inserted into the dictionary: the key is the first $\lfloor \lg (n/m) \rfloor + \lfloor \lg m \rfloor$ bits of $x$ and the value is the next $1 + \lfloor \lg (m/\epsilon) \rfloor - \lfloor \lg m \rfloor$ bits.
+If the cohort is full, the tail filter has to be rewritten.
+First, the bitset is doubled in size.
+Slot $2i + j$ in the new bitset, where $j < 2$, is set to equal slot $i$ in the old bitset.
+Second, values from the dictionary with empty tails must be inserted into the bitset.
+Finally, the dictionary is rewritten by adding an extra bit to the key portion of each key-value pair, pulled from the value portion.
+
+\subsection{Equivalence of the implementation and the abstract semantics}
+
+[TODO: this whole section
+  
+We need three facts:
+
+After a call to {\bf insert$(x)$}, {\bf lookup$(x)$} returns {\bf true}.
+
+
+Rewriting a filter does not change $[F]$. (This implies that neither the fpp nor the results of calls to {\bf lookup} are changed by rewriting a filter.)
+
+Adding a value to the dictionary increases the fpp by $2^{-\lfloor \lg (n/m) \rfloor - \lfloor \lg (m/\epsilon) \rfloor}$.
+
+$F$ and $S$ are said to be ``Equivalent'' when for all $y$, {\bf lookup$(y)$} is true if and only if bitstring in $[F]$ is a prefix of $y$.
+
+{\bf insert$(x, F)$} is equivalent under {\bf lookup} to adding $x$ as a bitstring to $[F]$.]
+
+\section{Differences from Pagh et al.}
+
+[TODO: this whole section
+
+Doesn't need to double the space when full.
+
+An asymptotically reduced upper bound on the space.
+
+Now oblivious: don't need to know maximum filter size ahead of time.]
+
+\bibliography{main}{}
+\bibliographystyle{alpha}
+%\bibliographystyle{plain}
+\end{document}
+
+%%  LocalWords:  AMQ lookup bitstring bitstrings fpp AMQ's pre DySECT
+%%  LocalWords:  quotienting Pagh et al bitset wlog Bloomier Raman th
+%%  LocalWords:  Rao Dictionariis Dynamicis Pauco Spatio Utentibus
+%%  LocalWords:  Fano multi bitlength llll TODO
