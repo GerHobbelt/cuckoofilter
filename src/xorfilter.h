@@ -30,7 +30,7 @@ inline uint64_t rotl64(uint64_t n, unsigned int c) {
 
 __attribute__((always_inline))
 inline uint32_t reduce(uint32_t hash, uint32_t n) {
-    // http://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+    // https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     return (uint32_t) (((uint64_t) hash * n) >> 32);
 }
 
