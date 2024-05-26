@@ -11,6 +11,12 @@
 #include "debug.h"
 #include "printutil.h"
 
+#if defined(GCC)
+#define PACKED   __attribute__((__packed__))
+#else
+#define PACKED   /**/
+#endif
+
 namespace cuckoofilter {
 
 // the most naive table implementation: one huge bit array
@@ -27,7 +33,7 @@ class SingleTable {
 
   struct Bucket {
     char bits_[kBytesPerBucket];
-  } __attribute__((__packed__));
+  } PACKED;
 
  public:
   // using a pointer adds one more indirection
