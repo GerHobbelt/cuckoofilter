@@ -1,9 +1,7 @@
-Cuckoo Filter
-============
+# Cuckoo Filter
 
 
-Overview
---------
+## Overview
 
 Cuckoo filter is a Bloom filter replacement for approximated set-membership queries. While Bloom filters are well-known space-efficient data structures to serve queries like "if item x is in a set?", they do not support deletion. Their variances to enable deletion (like counting Bloom filters) usually require much more space.
 
@@ -14,8 +12,7 @@ For details about the algorithm and citations please use:
 ["Cuckoo Filter: Practically Better Than Bloom"](http://www.cs.cmu.edu/~binfan/papers/conext14_cuckoofilter.pdf) in proceedings of ACM CoNEXT 2014 by Bin Fan, Dave Andersen and Michael Kaminsky
 
 
-API
---------
+## API
 
 A cuckoo filter supports following operations:
 
@@ -39,16 +36,14 @@ assert(filter.Contain(12) == cuckoofilter::Ok);
 ```
 
 
-Repository structure
---------------------
+## Repository structure
 
 *  `src/`: the C++ header and implementation of cuckoo filter
 *  `example/test.cc`: an example of using cuckoo filter
 *  `benchmarks/`: Some benchmarks of speed, space used, and false positive rate
 
 
-Build
--------
+## Build
 
 This libray depends on openssl library. Note that on MacOS 10.12, the header
 files of openssl are not available by default. It may require to install openssl
@@ -62,30 +57,32 @@ $ export CFLAGS="-I/usr/local/Cellar/openssl/1.0.2j/include"
 ```
 
 To build the example (`example/test.cc`):
+
 ```bash
 $ make test
 ```
 
 To build the benchmarks:
+
 ```bash
 $ cd benchmarks
 $ make
 ```
 
 
-Install
--------
+## Install
 
 To install the cuckoofilter library:
+
 ```bash
 $ make install
 ```
+
 By default, the header files will be placed in `/usr/local/include/cuckoofilter`
 and the static library at `/usr/local/lib/cuckoofilter.a`.
 
 
-Contributing
-------------
+## Contributing
 
 Contributions via GitHub pull requests are welcome. Please keep the code style guided by
 [Google C++ style](https://google.github.io/styleguide/cppguide.html). One can use
@@ -95,8 +92,7 @@ in this repository to enforce the style.
 
 
 
-Authors
--------
+## Authors
 
 - Bin Fan <binfan@cs.cmu.edu>
 - David G. Andersen <dga@cs.cmu.edu>
