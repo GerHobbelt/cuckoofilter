@@ -700,7 +700,12 @@ uint64_t reverseBitsSlow(uint64_t v) {
     return r;
 }
 
-int main(int argc, char ** argv) {
+
+#if defined(BUILD_MONOLITHIC)
+#define main     cuck_bulk_insert_and_query_test_main
+#endif
+
+int main(int argc, const char ** argv) {
   if (argc < 2) {
     cerr << "Usage: " << argv[0] << " <numberOfEntries> [<algorithmId> [<seed>]]" << endl;
     cerr << " numberOfEntries: number of keys" << endl;
@@ -1090,4 +1095,10 @@ int main(int argc, char ** argv) {
       add_count, to_add, to_lookup);
 
   cout << setw(NAME_WIDTH) << "SemiSort17" << cf << endl;
+
+  cf = FilterBenchmark<SimdBlockFilter<>>(add_count, to_add, to_lookup);
+
+  cout << setw(NAME_WIDTH) << "SimdBlock8" << cf << endl;
+
+	return 0;
 }

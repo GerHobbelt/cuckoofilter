@@ -6,9 +6,18 @@
 #include <iostream>
 #include <vector>
 
+#include "plf_nanotimer.hpp"
+
+
 using cuckoofilter::CuckooFilter;
 
-int main(int argc, char **argv) {
+
+
+#if defined(BUILD_MONOLITHIC)
+#define main cuck_example_main
+#endif
+
+int main(int argc, const char **argv) {
   size_t total_items = 1000000;
 
   // Create a cuckoo filter where each item is of type size_t and

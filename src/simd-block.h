@@ -22,6 +22,12 @@
 
 #include "hashutil.h"
 
+// https://stackoverflow.com/questions/33696092/whats-the-correct-replacement-for-posix-memalign-in-windows
+#if defined(_MSC_VER)
+#define posix_memalign(p, a, s)   (((*(p)) = _aligned_malloc((s), (a))), *(p) ? 0 : errno)
+#endif
+
+
 using uint32_t = ::std::uint32_t;
 using uint64_t = ::std::uint64_t;
 
@@ -118,9 +124,15 @@ SimdBlockFilter<HashFamily>::SimdBlockFilter(const int log_heap_space)
     directory_mask_((1ull << ::std::min(63, log_num_buckets_)) - 1),
     directory_(nullptr),
     hasher_() {
-  if (!__builtin_cpu_supports("avx2")) {
+#if defined(_MSC_VER)
+#if !defined(__AVX2__)
+  throw ::std::runtime_error("SimdBlockFilter does not work without AVX2 instructions");
+#endif
+#else
+	if (!__builtin_cpu_supports("avx2")) {
     throw ::std::runtime_error("SimdBlockFilter does not work without AVX2 instructions");
   }
+#endif
   const size_t alloc_size = 1ull << (log_num_buckets_ + LOG_BUCKET_BYTE_SIZE);
   const int malloc_failed =
       posix_memalign(reinterpret_cast<void**>(&directory_), 64, alloc_size);
@@ -137,8 +149,14 @@ SimdBlockFilter<HashFamily>::~SimdBlockFilter() noexcept {
 // The SIMD reinterpret_casts technically violate C++'s strict aliasing rules. However, we
 // compile with -fno-strict-aliasing.
 template <typename HashFamily>
-[[gnu::always_inline]] inline __m256i
-SimdBlockFilter<HashFamily>::MakeMask(const uint32_t hash) noexcept {
+#if defined(__GNUC__) 
+[[gnu::always_inline]]
+#endif
+#if defined(_MSC_VER)
+__forceinline
+#endif
+inline __m256i SimdBlockFilter < HashFamily> \
+    ::MakeMask(const uint32_t hash) noexcept {
   const __m256i ones = _mm256_set1_epi32(1);
   // Odd contants for hashing:
   const __m256i rehash = _mm256_setr_epi32(0x47b6137bU, 0x44974d91U, 0x8824ad5bU,
@@ -154,8 +172,13 @@ SimdBlockFilter<HashFamily>::MakeMask(const uint32_t hash) noexcept {
 }
 
 template <typename HashFamily>
-[[gnu::always_inline]] inline void
-SimdBlockFilter<HashFamily>::Add(const uint64_t key) noexcept {
+#if defined(__GNUC__) 
+[[gnu::always_inline]]
+#endif
+#if defined(_MSC_VER)
+__forceinline
+#endif
+inline void SimdBlockFilter < HashFamily> ::Add(const uint64_t key) noexcept {
   const auto hash = hasher_(key);
   const uint32_t bucket_idx = hash >> compl_;
   const __m256i mask = MakeMask(hash >> compl32_);
@@ -164,7 +187,13 @@ SimdBlockFilter<HashFamily>::Add(const uint64_t key) noexcept {
 }
 
 template <typename HashFamily>
-[[gnu::always_inline]] inline bool
+#if defined(__GNUC__)
+[[gnu::always_inline]]
+#endif
+#if defined(_MSC_VER)
+__forceinline
+#endif
+inline bool
 SimdBlockFilter<HashFamily>::Find(const uint64_t key) const noexcept {
   const auto hash = hasher_(key);
   const uint32_t bucket_idx = hash >> compl_;

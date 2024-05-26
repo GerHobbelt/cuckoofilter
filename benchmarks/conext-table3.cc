@@ -60,6 +60,10 @@ Metrics CuckooBenchmark(size_t add_count, const vector<uint64_t>& input) {
   return result;
 }
 
+#if defined(BUILD_MONOLITHIC)
+#define main   cuck_conext_table3_test_main
+#endif
+
 int main() {
   // Number of distinct values, used only for the constructor of CuckooFilter, which does
   // not allow the caller to specify the space usage directly. The actual number of
@@ -88,4 +92,5 @@ int main() {
        << setw(9) << sscf.fpr << "%" << endl
        << setw(35) << left << "constr. speed (million keys/sec) " << setw(10) << right
        << cf.speed << setw(10) << sscf.speed << endl;
+  return 0;
 }

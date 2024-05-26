@@ -12,16 +12,21 @@
 #include <string.h>
 #include <inttypes.h>
 #include <stdio.h>
+#ifndef _WIN32
 #include <unistd.h>
+#include <sys/mman.h>
+#else
+#include <windows.h>
+typedef BOOL bool;
+#endif
 #include <math.h>
 #include <time.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-// #include "gqf_hashutil.h"
-// #include "gqf.h"
-// #include "gqf_int.h"
+#include "gqf_hashutil.h"
+#include "gqf.h"
+#include "gqf_int.h"
 // #include "gqf.c"
 
 /******************************************************************
