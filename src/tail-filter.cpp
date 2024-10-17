@@ -38,7 +38,7 @@ uint64_t pcg64(pcg32_random_t* rng) {
   return result;
 }
 
-int main() {
+int main(void) {
   TailFilter tf(15, 1.0 / 512);
 
   pcg32_random_t rnd = {1, 1};

@@ -64,7 +64,7 @@ Metrics CuckooBenchmark(size_t add_count, const vector<uint64_t>& input) {
 #define main   cuck_conext_table3_test_main
 #endif
 
-int main() {
+int main(void) {
   // Number of distinct values, used only for the constructor of CuckooFilter, which does
   // not allow the caller to specify the space usage directly. The actual number of
   // distinct items inserted depends on how many fit until an insert failure occurs.
